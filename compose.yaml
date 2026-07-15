@@ -1,0 +1,29 @@
+# Локальный запуск SalesLift.
+#
+# Образ ТЯНЕТСЯ из registry, а не собирается: клиенту нужен только Docker —
+# ни Python, ни Node, ни uv. Локальная сборка — `make up-build`
+# (подключает compose.build.yaml) и нужна только для разработки.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-saleslift}
+      POSTGRES_USER: ${DB_USER:-saleslift}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-saleslift}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-saleslift} -d ${DB_NAME:-saleslift}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      # Наружу — чтобы `make dev` мог ходить в неё с хоста.
+      - "5432:5432"
+    volumes:
+      # Монтируем /var/lib/postgresql, а НЕ /var/lib/postgresql/data: начиная с
+      # 18-й версии образ кладёт данные в подкаталог, и монтирование по старому
+      # пути приводит к отказу старта («data in unused mount/volume»).
+      - db-data:/var/lib/postgresql
+
+volumes:
+  db-data:
