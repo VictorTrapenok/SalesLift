@@ -1477,7 +1477,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.25" },
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.9" },
-    { name = "strawberry-graphql", extras = ["cli"], specifier = ">=0.283" },
+    { name = "strawberry-graphql", extras = ["cli"], specifier = ">=0.321.0" },
 ]
 storage = [{ name = "aioboto3", specifier = ">=13.3" }]
 
