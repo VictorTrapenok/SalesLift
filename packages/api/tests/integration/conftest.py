@@ -1,4 +1,9 @@
-"""Фикстуры тестов: реальная PostgreSQL в Docker, без моков.
+"""Фикстуры интеграционных тестов: реальная PostgreSQL в Docker, без моков.
+
+Файл лежит в `tests/integration/`, а НЕ в `tests/`: фикстура `clean_db` —
+autouse, и в корневом conftest она заставляла бы юнит-тесты (которым база не
+нужна вовсе) подключаться к PostgreSQL. Граница «нужна ли БД» проходит по
+каталогу, и conftest должен лежать по ту же сторону.
 
 Окружение подгружается снаружи — `uv run --env-file .env.test pytest`
 (см. Makefile). Поэтому в этом файле нет возни с ручным чтением .env до
@@ -57,7 +62,8 @@ def _guard_test_environment() -> None:
 
 def _run_alembic_upgrade(connection: Connection) -> None:
     """Накатывает все миграции на переданное соединение."""
-    alembic_cfg = Config(str(Path(__file__).parent.parent / "alembic.ini"))
+    # tests/integration/conftest.py → packages/api/alembic.ini
+    alembic_cfg = Config(str(Path(__file__).parents[2] / "alembic.ini"))
     # Отдаём Alembic уже открытое соединение: иначе env.py откроет своё,
     # и мы получим два подключения к одной базе внутри одного теста.
     alembic_cfg.attributes["connection"] = connection
