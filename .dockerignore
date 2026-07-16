@@ -1,0 +1,41 @@
+# Чем меньше контекст сборки, тем быстрее билд и тем меньше поводов для
+# случайной инвалидации кэша слоёв.
+
+.git/
+.github/
+
+# Референс-проект — не часть сборки (и весит больше, чем весь остальной репозиторий)
+proto-saas/
+
+# Зависимости и артефакты: всё это ставится и собирается внутри образа
+**/node_modules/
+**/.venv/
+packages/web/dist/
+packages/web/src/graphql/generated/
+
+# Кэши
+**/__pycache__/
+**/*.py[cod]
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/*.tsbuildinfo
+
+# Тесты в образе не нужны
+packages/api/tests/
+packages/e2e/
+
+# Локальные секреты. .env.example НУЖЕН: compose подключает его через env_file.
+.env
+
+# Документация на работу образа не влияет
+docs/
+*.md
+!packages/api/README.md
+
+# Прочее
+.e2e-artifacts/
+.idea/
+.vscode/

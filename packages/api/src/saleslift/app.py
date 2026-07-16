@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from saleslift import __version__
 from saleslift.graphql.router import GRAPHQL_PATH, create_graphql_router
 from saleslift.routes import health
+from saleslift.static import mount_spa
 from saleslift.utils.logger import configure_logging
 
 
@@ -33,5 +34,9 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(create_graphql_router(), prefix=GRAPHQL_PATH)
+
+    # Строго последним: раздача SPA вешает catch-all на «/{full_path:path}»,
+    # и подключённая раньше она перехватила бы все API-маршруты.
+    mount_spa(app)
 
     return app

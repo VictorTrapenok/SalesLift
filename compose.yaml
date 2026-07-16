@@ -1,8 +1,8 @@
-# Локальный запуск SalesLift.
+# Запуск SalesLift одной командой: docker compose up -d --wait (или `make up`).
 #
-# Образ ТЯНЕТСЯ из registry, а не собирается: клиенту нужен только Docker —
-# ни Python, ни Node, ни uv. Локальная сборка — `make up-build`
-# (подключает compose.build.yaml) и нужна только для разработки.
+# Указаны и `image`, и `build`: если образ есть локально или в registry — он
+# используется, иначе собирается из исходников. Поэтому команда одна и та же и
+# для того, кто просто хочет попробовать продукт, и для того, кто правит код.
 
 services:
   db:
@@ -17,13 +17,51 @@ services:
       timeout: 3s
       retries: 30
     ports:
-      # Наружу — чтобы `make dev` мог ходить в неё с хоста.
-      - "5432:5432"
+      # Наружу — чтобы `make dev-api` мог ходить в неё с хоста.
+      - "${DB_PORT:-5432}:5432"
     volumes:
       # Монтируем /var/lib/postgresql, а НЕ /var/lib/postgresql/data: начиная с
       # 18-й версии образ кладёт данные в подкаталог, и монтирование по старому
       # пути приводит к отказу старта («data in unused mount/volume»).
       - db-data:/var/lib/postgresql
+
+  # Миграции — отдельный одноразовый контейнер из ТОГО ЖЕ образа.
+  # Точная копия схемы initContainer'а в k8s: локально и в кластере схема
+  # накатывается одинаково, поэтому «у меня работало» не расходится с прод.
+  migrate:
+    # Образ ТОТ ЖЕ, что у app, но `build:` объявлен только там: два сервиса со
+    # одинаковым build-контекстом buildkit пытается собрать параллельно и падает
+    # на конфликте снапшотов. Compose собирает образы до старта контейнеров,
+    # поэтому к моменту запуска migrate он уже готов.
+    image: ${SALESLIFT_IMAGE:-ghcr.io/salehelper/saleslift:latest}
+    command: ["alembic", "upgrade", "head"]
+    env_file: [.env.example]
+    environment:
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: ${SALESLIFT_IMAGE:-ghcr.io/salehelper/saleslift:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: [.env.example]
+    environment:
+      DB_HOST: db
+      # web + worker в одном процессе. В k8s режимы разнесены по разным подам.
+      APP_MODE: all
+    ports:
+      - "${PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        # Пока миграции не прошли, стартовать бессмысленно: приложение
+        # свалится на первом же запросе к несуществующим таблицам.
+        condition: service_completed_successfully
 
 volumes:
   db-data:

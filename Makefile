@@ -10,8 +10,8 @@ UV  := uv --project $(API)
 # Порт для `make dev`. Переопределяется, если 8000 занят: `make dev PORT=8081`.
 PORT ?= 8000
 
-.PHONY: help up up-build down logs seed dev schema codegen test test-integration \
-        test-db-start test-db-stop lint format typecheck
+.PHONY: help up down logs reset dev-api dev-web db-migrate schema codegen test \
+        test-integration test-db-start test-db-stop lint format typecheck
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -19,31 +19,32 @@ help: ## Показать список команд
 
 # ── Запуск ────────────────────────────────────────────────────────────────
 
-up: ## Запустить приложение (образ тянется из ghcr.io) → http://localhost:8000
+up: ## Запустить SalesLift → http://localhost:8000
 	docker compose up -d --wait
 	@echo ""
-	@echo "  ✅ SalesLift готов: http://localhost:8000"
+	@echo "  ✅ SalesLift готов: http://localhost:$(PORT)"
 	@echo ""
 
-up-build: ## То же, но собрать образ локально (для разработки, не для клиента)
-	docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait
-	@echo ""
-	@echo "  ✅ SalesLift готов (локальная сборка): http://localhost:8000"
-	@echo ""
-
-down: ## Остановить и удалить контейнеры
+down: ## Остановить SalesLift
 	docker compose down
 
-logs: ## Логи приложения
+logs: ## Смотреть логи приложения
 	docker compose logs -f app
 
-seed: ## Наполнить БД демо-данными (откажется работать в production)
-	$(UV) run python -m saleslift.tools.seed_demo
+reset: ## Остановить и УДАЛИТЬ все данные (чистый старт)
+	docker compose down -v
 
-dev: ## Разработка: БД в Docker, API с hot-reload (порт: make dev PORT=8081)
+dev-api: ## Разработка: БД в Docker + API с hot-reload (порт: make dev-api PORT=8081)
 	docker compose up -d db --wait
 	# Через server.py, а не uvicorn CLI: CLI затирает настройку structlog своим log_config.
 	cd $(API) && DB_HOST=localhost PORT=$(PORT) uv run python -m saleslift.server
+
+dev-web: ## Разработка: фронтенд с hot-reload на :5173 (проксирует /api на $(PORT))
+	cd $(WEB) && API_PORT=$(PORT) npm run dev
+
+db-migrate: ## Накатить миграции на БД разработки
+	docker compose up -d db --wait
+	cd $(API) && DB_HOST=localhost uv run alembic upgrade head
 
 # ── Кодогенерация ─────────────────────────────────────────────────────────
 
