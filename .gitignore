@@ -37,3 +37,4 @@ proto-saas/
 .vscode/
 *.swp
 .DS_Store
+todo.md
