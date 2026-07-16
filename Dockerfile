@@ -31,7 +31,7 @@ ENV APP_ENV=development
 RUN uv run strawberry export-schema saleslift.graphql.schema:schema > /app/packages/api/schema.graphql
 
 # ── Стейдж 2: фронтенд (codegen → сборка) ─────────────────────────────────
-FROM node:24-alpine AS web-builder
+FROM node:26-alpine AS web-builder
 
 WORKDIR /app/packages/web
 
