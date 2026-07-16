@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    // Строгий режим — зеркало mypy --strict на бэкенде. Правило проекта
+    // «всегда указывай явный тип возвращаемого значения» держится на этом.
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    // verbatimModuleSyntax намеренно выключен: graphql-codegen генерирует
+    // импорты типов без `type`, и включённый флаг ломает сборку на файлах,
+    // которые мы не пишем и править не можем. Остальная строгость сохранена.
+    "verbatimModuleSyntax": false,
+
+    // Без baseUrl: он устарел и будет удалён в TypeScript 7. Пути резолвятся
+    // относительно этого файла.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "codegen.ts"]
+}
