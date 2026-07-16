@@ -1,0 +1,129 @@
+name: Релиз
+
+# Запускается на тег вида v1.2.3 и создаёт запись в списке релизов репозитория.
+#
+# Порядок важен: сначала build.yml собирает и публикует образ с тем же тегом,
+# затем этот workflow дожидается образа и оформляет релиз. Поэтому релиз
+# никогда не ссылается на несуществующий образ.
+on:
+  push:
+    tags: ['v*']
+  # Позволяет оформить релиз вручную для уже существующего тега.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег для релиза (например, v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    name: Оформить релиз
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Полная история: без неё нельзя сгенерировать список изменений.
+          fetch-depth: 0
+
+      - name: Определить версию
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Вход в GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Образ публикует build.yml по тому же тегу. Ждём его: релиз без образа
+      # бесполезен — команда установки из описания не сработает.
+      - name: Дождаться публикации образа
+        id: image
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${{ steps.version.outputs.version }}"
+          echo "Жду появления ${IMAGE}"
+          for i in $(seq 1 60); do
+            if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+              echo "Образ на месте"
+              echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "  попытка ${i}/60..."
+            sleep 20
+          done
+          echo "::error::Образ ${IMAGE} так и не появился. Проверьте workflow «Сборка образа» для этого тега."
+          exit 1
+
+      - name: Описание релиза
+        id: notes
+        run: |
+          IMAGE="${{ steps.image.outputs.image }}"
+          cat > release-notes.md <<EOF
+          ## Установка
+
+          \`\`\`bash
+          git clone https://github.com/${{ github.repository }}.git SalesLift
+          cd SalesLift
+          git checkout ${{ steps.version.outputs.tag }}
+          make up
+          \`\`\`
+
+          Откройте http://localhost:8000 и зарегистрируйте компанию.
+
+          ## Образ
+
+          \`\`\`
+          ${IMAGE}
+          \`\`\`
+
+          Образ собран и проверен дымовым тестом до публикации: регистрация
+          компании, вход, права и раздача интерфейса работают. К образу
+          приложена аттестация происхождения сборки.
+
+          ## Что изменилось
+          EOF
+
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            cat release-notes.md
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Создаёт запись в списке релизов репозитория.
+      # generate_release_notes=true добавляет список изменений и участников,
+      # собранный самим GitHub из коммитов и PR со времени прошлого тега.
+      - name: Создать релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: SalesLift ${{ steps.version.outputs.tag }}
+          body: ${{ steps.notes.outputs.notes }}
+          generate_release_notes: true
+          draft: false
+          # Предрелиз для тегов вида v0.1.0-rc1: GitHub пометит их иначе и не
+          # будет предлагать как последнюю версию.
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+          make_latest: ${{ !contains(steps.version.outputs.tag, '-') }}
+
+      - name: Итог
+        run: |
+          {
+            echo "### ✅ Релиз ${{ steps.version.outputs.tag }} опубликован"
+            echo ""
+            echo "- [Страница релиза](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})"
+            echo "- Образ: \`${{ steps.image.outputs.image }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

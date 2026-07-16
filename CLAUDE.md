@@ -45,6 +45,7 @@
   Это НЕ относится к схеме БД: миграции обязаны быть совместимы с предыдущей
   версией кода на один релиз — см.
   [migrations/readme.md](packages/api/src/saleslift/migrations/readme.md).
+- Все шероховатости недоработки всё остальное Фиксируй в файле ROADMAP.md
 
 Подробная архитектура — [ARCHITECTURE.md](ARCHITECTURE.md), тестирование —
 [docs/testing.md](docs/testing.md), рабочее окружение —
@@ -113,16 +114,16 @@ make dev-web PORT=8081
 
 Слоистость: **резолвер (тонкий адаптер) → сервис (вся логика) → модель**.
 
-| Каталог      | Назначение                                              | Детали                                                                        |
-| ------------ | ------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `config/`    | Настройки из окружения, константы, информация о сборке   | —                                                                             |
-| `db/`        | Движок, сессии, миксины, мягкое удаление                 | [readme](packages/api/src/saleslift/db/readme.md)                             |
-| `models/`    | ORM-модели, явный реестр                                 | [readme](packages/api/src/saleslift/models/readme.md)                         |
-| `migrations/`| Alembic                                                  | [readme](packages/api/src/saleslift/migrations/readme.md)                     |
-| `graphql/`   | Схема, контекст, типы, резолверы, обработка ошибок       | —                                                                             |
-| `services/`  | Бизнес-логика                                            | [права](packages/api/src/saleslift/services/users/user_roles_permission.md)   |
-| `i18n/`      | Локализация сообщений API                                | —                                                                             |
-| `utils/`     | Доменные ошибки, логгер, вспомогательное                 | —                                                                             |
+| Каталог       | Назначение                                             | Детали                                                                      |
+| ------------- | ------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `config/`     | Настройки из окружения, константы, информация о сборке | —                                                                           |
+| `db/`         | Движок, сессии, миксины, мягкое удаление               | [readme](packages/api/src/saleslift/db/readme.md)                           |
+| `models/`     | ORM-модели, явный реестр                               | [readme](packages/api/src/saleslift/models/readme.md)                       |
+| `migrations/` | Alembic                                                | [readme](packages/api/src/saleslift/migrations/readme.md)                   |
+| `graphql/`    | Схема, контекст, типы, резолверы, обработка ошибок     | —                                                                           |
+| `services/`   | Бизнес-логика                                          | [права](packages/api/src/saleslift/services/users/user_roles_permission.md) |
+| `i18n/`       | Локализация сообщений API                              | —                                                                           |
+| `utils/`      | Доменные ошибки, логгер, вспомогательное               | —                                                                           |
 
 ### Frontend (`packages/web`)
 
@@ -130,12 +131,12 @@ make dev-web PORT=8081
 `components/` (компоненты только этой страницы). В `src/components` — только
 то, что переиспользуется между страницами.
 
-| Каталог     | Назначение                              | Детали                                              |
-| ----------- | --------------------------------------- | --------------------------------------------------- |
-| `graphql/`  | Apollo-клиент, сгенерированные типы     | [readme](packages/web/src/graphql/readme.md)        |
-| `i18n/`     | Локали ru/en                            | [readme](packages/web/src/i18n/readme.md)           |
-| `pages/`    | Страницы                                | —                                                   |
-| `hooks/`    | `useCurrentUser` — профиль и права      | —                                                   |
+| Каталог    | Назначение                          | Детали                                       |
+| ---------- | ----------------------------------- | -------------------------------------------- |
+| `graphql/` | Apollo-клиент, сгенерированные типы | [readme](packages/web/src/graphql/readme.md) |
+| `i18n/`    | Локали ru/en                        | [readme](packages/web/src/i18n/readme.md)    |
+| `pages/`   | Страницы                            | —                                            |
+| `hooks/`   | `useCurrentUser` — профиль и права  | —                                            |
 
 ### Data Model
 

@@ -1,0 +1,189 @@
+name: Проверки
+
+# Быстрая обратная связь на каждый push и PR. Тяжёлая сборка образа — в build.yml.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Отменяем прошлые прогоны той же ветки: результат по устаревшему коммиту
+# никому не нужен, а очередь он занимает.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: '0.11.28'
+  NODE_VERSION: '24'
+
+jobs:
+  lint:
+    name: Линтеры и форматирование
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: packages/api/uv.lock
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Установка зависимостей бэкенда
+        working-directory: packages/api
+        run: uv sync --frozen
+
+      - name: ruff check
+        working-directory: packages/api
+        run: uv run ruff check --output-format=github .
+
+      - name: ruff format
+        working-directory: packages/api
+        run: uv run ruff format --check .
+
+      - name: Установка зависимостей фронтенда
+        working-directory: packages/web
+        run: npm ci --no-audit --no-fund
+
+      # Схема нужна кодогенерации, а типы — линтеру фронтенда.
+      - name: Кодогенерация типов
+        run: |
+          cd packages/api && uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
+          cd ../web && npm run codegen
+
+      - name: eslint
+        working-directory: packages/web
+        run: npm run lint
+
+      - name: prettier
+        working-directory: packages/web
+        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+
+  typecheck:
+    name: Проверка типов
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: packages/api/uv.lock
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Установка зависимостей
+        run: |
+          cd packages/api && uv sync --frozen
+          cd ../web && npm ci --no-audit --no-fund
+
+      - name: mypy --strict
+        working-directory: packages/api
+        run: uv run mypy
+
+      - name: Кодогенерация типов
+        run: |
+          cd packages/api && uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
+          cd ../web && npm run codegen
+
+      - name: tsc --noEmit
+        working-directory: packages/web
+        run: npm run typecheck
+
+  test:
+    name: Тесты
+    runs-on: ubuntu-latest
+
+    # PostgreSQL как сервис GitHub: порт 5433, как ожидает .env.test —
+    # поднимать контейнер скриптом здесь не нужно.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: saleslift_test
+          POSTGRES_USER: saleslift_test
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U saleslift_test -d saleslift_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: packages/api/uv.lock
+
+      - name: Установка зависимостей
+        working-directory: packages/api
+        run: uv sync --frozen
+
+      # Unit и интеграционные одним прогоном: pytest однопоточен, и это
+      # свойство, а не ограничение — тесты делят одну базу (см. docs/testing.md).
+      - name: pytest
+        working-directory: packages/api
+        run: uv run --env-file .env.test pytest tests -v --junit-xml=../../test-results.xml
+
+      - name: Отчёт о тестах
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Результаты pytest
+          path: test-results.xml
+          reporter: java-junit
+          fail-on-error: false
+
+  schema-drift:
+    name: Схема GraphQL актуальна
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: packages/api/uv.lock
+
+      - name: Установка зависимостей
+        working-directory: packages/api
+        run: uv sync --frozen
+
+      # schema.graphql коммитится: это контракт API, его изменения должны быть
+      # видны в diff'е при ревью. Здесь ловим «поменял резолвер, но не
+      # перегенерировал схему».
+      - name: Перегенерировать и сравнить
+        run: |
+          cd packages/api
+          uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
+          if ! git diff --exit-code schema.graphql; then
+            {
+              echo "### ❌ schema.graphql устарел"
+              echo ""
+              # Одинарные кавычки намеренно: обратные кавычки здесь — разметка
+              # markdown, подстановка команды не нужна.
+              # shellcheck disable=SC2016
+              echo 'Резолверы изменились, а схема — нет. Запустите `make codegen` и закоммитьте результат.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

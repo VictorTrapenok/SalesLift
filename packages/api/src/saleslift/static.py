@@ -8,6 +8,7 @@
 hot-reload'ом, а `/api` он проксирует на бэкенд (см. vite.config.ts).
 """
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -19,8 +20,11 @@ from saleslift.utils.logger import get_logger
 log = get_logger(__name__)
 
 #: Каталог собранной SPA внутри образа (см. стейдж runtime в Dockerfile).
-#: Путь относительный от packages/api — там же лежит рабочий каталог процесса.
-SPA_DIST_DIR = Path("/app/packages/web/dist")
+#:
+#: Переопределяется переменной SPA_DIST_DIR. Это нужно не «на всякий случай»:
+#: без неё раздачу статики нельзя проверить нигде, кроме собранного образа, —
+#: то есть дымовой тест невозможно прогнать локально перед отправкой в CI.
+SPA_DIST_DIR = Path(os.environ.get("SPA_DIST_DIR", "/app/packages/web/dist"))
 
 #: Префиксы, которые обслуживает сам бэкенд и которые SPA перехватывать не должна.
 _API_PREFIXES = ("/api/",)

@@ -28,13 +28,8 @@ make down    # остановить
 make reset   # остановить и удалить все данные
 ```
 
-> ⚠️ **Образ ещё не опубликован**, поэтому `make up` пока собирает его локально
-> — это несколько минут и требует доступа к реестрам npm и PyPI. Публикация в
-> ghcr.io готовится ([дорожная карта](ROADMAP.md)); после неё команда станет
-> тем, чем задумана: скачал и запустил за минуту.
->
-> Пока образа нет, для ознакомления надёжнее путь из
-> [docs/development.md](docs/development.md) — он проверен и работает.
+Образ забирается из GitHub Container Registry — собирать ничего не нужно.
+Первый запуск занимает около минуты: столько скачивается образ.
 
 ---
 
@@ -67,8 +62,8 @@ make reset   # остановить и удалить все данные
 
 ### Анализ звонков
 
-Загрузка записей, расшифровка и разбор разговоров — **в разработке**, см.
-[дорожную карту](ROADMAP.md).
+Загрузка записей, расшифровка разговоров и разбор работы менеджера.
+Что уже доступно, а что на подходе — в [дорожной карте](ROADMAP.md).
 
 ---
 
@@ -77,7 +72,7 @@ make reset   # остановить и удалить все данные
 Для промышленной эксплуатации — Kubernetes или k3s:
 
 ```bash
-helm install saleslift oci://ghcr.io/salehelper/charts/saleslift \
+helm install saleslift oci://ghcr.io/victortrapenok/charts/saleslift \
   --namespace saleslift --create-namespace \
   --set ingress.host=saleslift.example.com
 ```
@@ -85,9 +80,6 @@ helm install saleslift oci://ghcr.io/salehelper/charts/saleslift \
 По умолчанию чарт поднимает и базу — этого достаточно, чтобы начать работать.
 Для промышленной нагрузки подключите управляемую PostgreSQL:
 `--set postgresql.enabled=false --set externalDatabase.host=...`
-
-> Helm-чарт готовится, см. [дорожную карту](ROADMAP.md). Сейчас доступен
-> запуск через Docker.
 
 ---
 

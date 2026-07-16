@@ -1,0 +1,44 @@
+version: 2
+
+# Обновления приезжают PR'ами, а те проходят те же проверки, что и любой другой
+# код: линтеры, типы, тесты и дымовой тест собранного образа. Поэтому апдейт,
+# который что-то ломает, виден до вливания, а не после.
+
+updates:
+  - package-ecosystem: uv
+    directory: /packages/api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'deps(api)'
+    groups:
+      # Мелкие обновления одним PR: разбирать десяток патч-версий по отдельности
+      # — трата внимания, а не забота о безопасности.
+      patch-and-minor:
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: npm
+    directory: /packages/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'deps(web)'
+    groups:
+      patch-and-minor:
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'deps(ci)'
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'deps(docker)'

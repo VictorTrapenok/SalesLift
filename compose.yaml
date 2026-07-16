@@ -33,7 +33,7 @@ services:
     # одинаковым build-контекстом buildkit пытается собрать параллельно и падает
     # на конфликте снапшотов. Compose собирает образы до старта контейнеров,
     # поэтому к моменту запуска migrate он уже готов.
-    image: ${SALESLIFT_IMAGE:-ghcr.io/salehelper/saleslift:latest}
+    image: ${SALESLIFT_IMAGE:-ghcr.io/victortrapenok/saleslift:latest}
     command: ["alembic", "upgrade", "head"]
     env_file: [.env.example]
     environment:
@@ -44,7 +44,7 @@ services:
     restart: "no"
 
   app:
-    image: ${SALESLIFT_IMAGE:-ghcr.io/salehelper/saleslift:latest}
+    image: ${SALESLIFT_IMAGE:-ghcr.io/victortrapenok/saleslift:latest}
     build:
       context: .
       dockerfile: Dockerfile
