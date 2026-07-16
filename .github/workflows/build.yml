@@ -1,4 +1,4 @@
-name: Сборка образа
+name: Build image
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
     # который прошёл проверку. Разнеси мы сборку и тест по разным job'ам —
     # пришлось бы либо гонять образ через артефакты, либо публиковать до
     # проверки. Провал теста означает, что не публикуется ничего.
-    name: Собрать, проверить и опубликовать
+    name: Build, verify and publish
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +39,7 @@ jobs:
 
       # На pull_request не логинимся и не публикуем: PR из форка не имеет прав
       # на запись в registry, да и публиковать непроверенный чужой код нельзя.
-      - name: Вход в GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
@@ -48,7 +48,7 @@ jobs:
           # Встроенный токен — внешних секретов проекту не нужно.
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Вычислить теги и метки образа
+      - name: Compute image tags and labels
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -68,7 +68,7 @@ jobs:
       # Собираем БЕЗ публикации: образ остаётся в локальном docker демоне.
       # Именно `load: true, push: false` делает правилом «публикуем только
       # проверенное». С `push: true` образ уехал бы в registry до тестов.
-      - name: Сборка образа
+      - name: Build image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -90,7 +90,7 @@ jobs:
       # `services:` намеренно не используются: они стартуют ДО шагов, а нам
       # важен порядок «сеть → БД → миграции → приложение → тест». Своя сеть
       # даёт этот контроль явно.
-      - name: Изолированная сеть и PostgreSQL
+      - name: Isolated network and PostgreSQL
         run: |
           docker network create ci-net-${{ github.run_id }}
           docker run -d --name ci-db-${{ github.run_id }} \
@@ -102,14 +102,14 @@ jobs:
             sleep 1
           done
 
-      - name: Миграции одноразовым контейнером из собранного образа
+      - name: Run migrations in a throwaway container from the built image
         run: |
           docker run --rm --network ci-net-${{ github.run_id }} \
             -e DB_HOST=ci-db-${{ github.run_id }} -e DB_PASSWORD=ci_password \
             -e APP_ENV=development \
             saleslift:ci alembic upgrade head
 
-      - name: Запуск приложения из собранного образа
+      - name: Start application from the built image
         run: |
           mkdir -p .ci-artifacts
           docker run -d --name ci-app-${{ github.run_id }} \
@@ -120,36 +120,36 @@ jobs:
             -e JWT_SECRET=ci-secret-at-least-32-characters-long-ok \
             saleslift:ci
 
-      - name: Ожидание готовности
+      - name: Wait for readiness
         run: |
           for _ in $(seq 1 60); do
             if curl -sf http://localhost:8000/api/v1/health > /dev/null; then
-              echo "Приложение поднялось"; exit 0
+              echo "Application is up"; exit 0
             fi
             sleep 1
           done
-          echo "::error::Приложение не поднялось за 60 секунд"
+          echo "::error::Application did not become ready within 60 seconds"
           docker logs ci-app-${{ github.run_id }}
           exit 1
 
       # Ворота, решающие судьбу образа: проверяет не «отвечает ли порт», а
       # работает ли продукт — регистрация компании, вход, права, раздача SPA.
-      - name: Дымовой тест
+      - name: Smoke test
         run: BASE_URL=http://localhost:8000 bash scripts/smoke-test.sh
 
       # ── Публикация ──────────────────────────────────────────────────────
       # Сюда мы попадаем, только если всё выше прошло.
-      - name: Публикация образа
+      - name: Publish image
         if: github.event_name != 'pull_request'
         run: |
           while read -r tag; do
             [ -z "$tag" ] && continue
             docker tag saleslift:ci "$tag"
             docker push "$tag"
-            echo "Опубликован: $tag"
+            echo "Published: $tag"
           done <<< "${{ steps.meta.outputs.tags }}"
 
-      - name: Идентификатор опубликованного образа
+      - name: Published image digest
         id: digest
         if: github.event_name != 'pull_request'
         run: |
@@ -159,7 +159,7 @@ jobs:
 
       # Нативная аттестация GitHub: подтверждает, что образ собран именно этим
       # workflow из этого коммита. Видна на странице пакета.
-      - name: Аттестация происхождения сборки
+      - name: Build provenance attestation
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v2
         with:
@@ -167,34 +167,34 @@ jobs:
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
 
-      - name: Итог
+      - name: Summary
         if: always()
         run: |
           {
-            echo "### Сборка образа"
+            echo "### Build image"
             echo ""
             if [ "${{ job.status }}" = "success" ]; then
-              echo "✅ Образ собран и прошёл дымовой тест."
+              echo "✅ Image built and passed the smoke test."
             else
-              echo "❌ Провал — в registry ничего не опубликовано."
+              echo "❌ Failed — nothing was published to the registry."
             fi
             echo ""
-            echo "**Теги:**"
+            echo "**Tags:**"
             echo '```'
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ── Диагностика и уборка ────────────────────────────────────────────
-      - name: Логи приложения
+      - name: Application logs
         if: always()
         run: |
           docker logs ci-app-${{ github.run_id }} > .ci-artifacts/app.log 2>&1 || true
           if [ "${{ job.status }}" != "success" ]; then
-            echo "::group::Логи приложения"; tail -100 .ci-artifacts/app.log; echo "::endgroup::"
+            echo "::group::Application logs"; tail -100 .ci-artifacts/app.log; echo "::endgroup::"
           fi
 
-      - name: Артефакты
+      - name: Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -203,7 +203,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Уборка
+      - name: Cleanup
         if: always()
         run: |
           docker rm -f ci-app-${{ github.run_id }} ci-db-${{ github.run_id }} 2>/dev/null || true

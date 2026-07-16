@@ -1,4 +1,4 @@
-name: Релиз
+name: Release
 
 # Запускается на тег вида v1.2.3 и создаёт запись в списке релизов репозитория.
 #
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Тег для релиза (например, v0.1.0)'
+        description: 'Tag to release (for example, v0.1.0)'
         required: true
 
 permissions:
@@ -25,7 +25,7 @@ env:
 
 jobs:
   release:
-    name: Оформить релиз
+    name: Publish release
     runs-on: ubuntu-latest
 
     steps:
@@ -35,14 +35,14 @@ jobs:
           # Полная история: без неё нельзя сгенерировать список изменений.
           fetch-depth: 0
 
-      - name: Определить версию
+      - name: Determine version
         id: version
         run: |
           TAG="${{ inputs.tag || github.ref_name }}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Вход в GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -51,24 +51,24 @@ jobs:
 
       # Образ публикует build.yml по тому же тегу. Ждём его: релиз без образа
       # бесполезен — команда установки из описания не сработает.
-      - name: Дождаться публикации образа
+      - name: Wait for the image to be published
         id: image
         run: |
           IMAGE="${REGISTRY}/${IMAGE_NAME,,}:${{ steps.version.outputs.version }}"
-          echo "Жду появления ${IMAGE}"
+          echo "Waiting for ${IMAGE}"
           for i in $(seq 1 60); do
             if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
-              echo "Образ на месте"
+              echo "Image is available"
               echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "  попытка ${i}/60..."
+            echo "  attempt ${i}/60..."
             sleep 20
           done
-          echo "::error::Образ ${IMAGE} так и не появился. Проверьте workflow «Сборка образа» для этого тега."
+          echo "::error::Image ${IMAGE} never appeared. Check the «Build image» workflow for this tag."
           exit 1
 
-      - name: Описание релиза
+      - name: Release notes
         id: notes
         run: |
           IMAGE="${{ steps.image.outputs.image }}"
@@ -106,7 +106,7 @@ jobs:
       # Создаёт запись в списке релизов репозитория.
       # generate_release_notes=true добавляет список изменений и участников,
       # собранный самим GitHub из коммитов и PR со времени прошлого тега.
-      - name: Создать релиз
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
@@ -119,11 +119,11 @@ jobs:
           prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           make_latest: ${{ !contains(steps.version.outputs.tag, '-') }}
 
-      - name: Итог
+      - name: Summary
         run: |
           {
-            echo "### ✅ Релиз ${{ steps.version.outputs.tag }} опубликован"
+            echo "### ✅ Release ${{ steps.version.outputs.tag }} published"
             echo ""
-            echo "- [Страница релиза](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})"
-            echo "- Образ: \`${{ steps.image.outputs.image }}\`"
+            echo "- [Release page](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})"
+            echo "- Image: \`${{ steps.image.outputs.image }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

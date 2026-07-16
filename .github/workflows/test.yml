@@ -1,4 +1,4 @@
-name: Проверки
+name: Checks
 
 # Быстрая обратная связь на каждый push и PR. Тяжёлая сборка образа — в build.yml.
 on:
@@ -21,7 +21,7 @@ env:
 
 jobs:
   lint:
-    name: Линтеры и форматирование
+    name: Lint and formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
           cache: npm
           cache-dependency-path: packages/web/package-lock.json
 
-      - name: Установка зависимостей бэкенда
+      - name: Install backend dependencies
         working-directory: packages/api
         run: uv sync --frozen
 
@@ -50,12 +50,12 @@ jobs:
         working-directory: packages/api
         run: uv run ruff format --check .
 
-      - name: Установка зависимостей фронтенда
+      - name: Install frontend dependencies
         working-directory: packages/web
         run: npm ci --no-audit --no-fund
 
       # Схема нужна кодогенерации, а типы — линтеру фронтенда.
-      - name: Кодогенерация типов
+      - name: Generate types
         run: |
           cd packages/api && uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
           cd ../web && npm run codegen
@@ -69,7 +69,7 @@ jobs:
         run: npx prettier --check "src/**/*.{ts,tsx,css}"
 
   typecheck:
-    name: Проверка типов
+    name: Type checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
           cache: npm
           cache-dependency-path: packages/web/package-lock.json
 
-      - name: Установка зависимостей
+      - name: Install dependencies
         run: |
           cd packages/api && uv sync --frozen
           cd ../web && npm ci --no-audit --no-fund
@@ -95,7 +95,7 @@ jobs:
         working-directory: packages/api
         run: uv run mypy
 
-      - name: Кодогенерация типов
+      - name: Generate types
         run: |
           cd packages/api && uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
           cd ../web && npm run codegen
@@ -105,7 +105,7 @@ jobs:
         run: npm run typecheck
 
   test:
-    name: Тесты
+    name: Tests
     runs-on: ubuntu-latest
 
     # PostgreSQL как сервис GitHub: порт 5433, как ожидает .env.test —
@@ -134,7 +134,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/api/uv.lock
 
-      - name: Установка зависимостей
+      - name: Install dependencies
         working-directory: packages/api
         run: uv sync --frozen
 
@@ -144,17 +144,17 @@ jobs:
         working-directory: packages/api
         run: uv run --env-file .env.test pytest tests -v --junit-xml=../../test-results.xml
 
-      - name: Отчёт о тестах
+      - name: Test report
         uses: dorny/test-reporter@v1
         if: always()
         with:
-          name: Результаты pytest
+          name: pytest results
           path: test-results.xml
           reporter: java-junit
           fail-on-error: false
 
   schema-drift:
-    name: Схема GraphQL актуальна
+    name: GraphQL schema is up to date
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -165,25 +165,25 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/api/uv.lock
 
-      - name: Установка зависимостей
+      - name: Install dependencies
         working-directory: packages/api
         run: uv sync --frozen
 
       # schema.graphql коммитится: это контракт API, его изменения должны быть
       # видны в diff'е при ревью. Здесь ловим «поменял резолвер, но не
       # перегенерировал схему».
-      - name: Перегенерировать и сравнить
+      - name: Regenerate and compare
         run: |
           cd packages/api
           uv run strawberry export-schema saleslift.graphql.schema:schema > schema.graphql
           if ! git diff --exit-code schema.graphql; then
             {
-              echo "### ❌ schema.graphql устарел"
+              echo "### ❌ schema.graphql is out of date"
               echo ""
               # Одинарные кавычки намеренно: обратные кавычки здесь — разметка
               # markdown, подстановка команды не нужна.
               # shellcheck disable=SC2016
-              echo 'Резолверы изменились, а схема — нет. Запустите `make codegen` и закоммитьте результат.'
+              echo 'Resolvers changed but the schema did not. Run `make codegen` and commit the result.'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
