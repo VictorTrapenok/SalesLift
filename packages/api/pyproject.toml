@@ -89,6 +89,15 @@ files = ["src", "tests"]
 module = ["asyncpg.*", "aioboto3.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# Декораторы Strawberry (@strawberry.field, @strawberry.mutation) не типизированы
+# настолько, чтобы пройти disallow_untyped_decorators: mypy считает, что они
+# «расстрачивают» типы обёрнутой функции. Отключаем ТОЧЕЧНО и только это правило
+# и только в GraphQL-слое — все остальные строгие проверки, включая обязательные
+# аннотации возвращаемых значений, здесь продолжают действовать.
+module = ["saleslift.graphql.*"]
+disallow_untyped_decorators = false
+
 # ── Pytest ────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]
