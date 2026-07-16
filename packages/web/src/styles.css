@@ -1,0 +1,23 @@
+/* Глобальные стили. Компонентные — в самих компонентах через AntD. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Страницы входа и регистрации: карточка по центру экрана. */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: #f5f5f5;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+}
