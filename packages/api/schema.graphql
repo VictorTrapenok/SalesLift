@@ -1,0 +1,91 @@
+"""Результат успешной авторизации"""
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+"""Информация о сборке образа"""
+type BuildInfo {
+  branch: String!
+  pipelineId: String!
+  buildId: String!
+}
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+"""Состояние сервиса"""
+type HealthStatus {
+  status: String!
+  version: String!
+  build: BuildInfo!
+}
+
+"""Данные входа"""
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+"""Корневые мутации"""
+type Mutation {
+  """Зарегистрировать компанию и стать её администратором"""
+  resolverAuthRegister(input: RegisterInput!): AuthPayload!
+
+  """Войти по e-mail и паролю"""
+  resolverAuthLogin(input: LoginInput!): AuthPayload!
+}
+
+"""Корневые запросы"""
+type Query {
+  """Состояние сервиса и информация о сборке"""
+  health: HealthStatus!
+
+  """Профиль текущего сотрудника"""
+  resolverAuthMe: User!
+}
+
+"""Данные регистрации новой компании"""
+input RegisterInput {
+  companyName: String!
+  adminName: String!
+  email: String!
+  password: String!
+  locale: String! = "en"
+}
+
+"""Компания-клиент"""
+type Tenant {
+  id: UUID!
+  name: String!
+  plan: String!
+  country: String
+  website: String
+  contactPhone: String
+}
+
+scalar UUID
+
+"""Сотрудник компании"""
+type User {
+  id: UUID!
+  name: String!
+  email: String!
+  bio: String
+  locale: String!
+  status: String!
+  lastLoginAt: DateTime
+  tenant: Tenant!
+  permissions: [String!]!
+  effectivePermissions: [UserPermissions!]!
+}
+
+enum UserPermissions {
+  Viewer
+  Manager
+  Admin
+  Permission_users_see
+  Permission_users_create
+  Permission_org_settings_see
+  Permission_org_settings_edit
+}
