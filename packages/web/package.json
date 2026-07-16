@@ -14,7 +14,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
-    "@ant-design/icons": "^5.5.2",
+    "@ant-design/icons": "^6.3.2",
     "@ant-design/pro-components": "^2.8.2",
     "@apollo/client": "^3.12.4",
     "antd": "^5.22.5",
