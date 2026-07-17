@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "SalesLift — мультитенантный SaaS для аналитики звонков: GraphQL API и фоновый воркер"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.118",
+    "fastapi>=0.139.1",
     "strawberry-graphql[fastapi]>=0.283",
     "uvicorn[standard]>=0.38",
     "sqlalchemy[asyncio]>=2.0.36",
