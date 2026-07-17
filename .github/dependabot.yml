@@ -42,3 +42,20 @@ updates:
       interval: monthly
     commit-message:
       prefix: 'deps(docker)'
+    ignore:
+      # Версия языка — не зависимость, а решение о тулчейне, и записано оно в
+      # четырёх местах сразу: тег базового образа, packages/api/.python-version,
+      # python_version у mypy, NODE_VERSION в workflows/test.yml. Dependabot
+      # видит только тег и поднимает его в одиночку, а выглядит это как
+      # безобидная правка одной строки. Расхождение стоило сломанных миграций
+      # (PR #3) — подробности в комментариях к соответствующим FROM в Dockerfile.
+      #
+      # Патч-версии подтягиваются сами: теги 3.13-slim и 24-alpine плавающие, их
+      # пересобирает upstream. Здесь глушатся только minor и major, то есть смена
+      # версии языка — её поднимают руками и сразу везде.
+      - dependency-name: 'python'
+        update-types:
+          ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: 'node'
+        update-types:
+          ['version-update:semver-major', 'version-update:semver-minor']
