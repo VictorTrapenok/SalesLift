@@ -6,7 +6,7 @@
 # ── Стейдж 1: бэкенд + экспорт GraphQL-схемы ──────────────────────────────
 # Бэкенд собирается ПЕРВЫМ, потому что фронтенду нужен его schema.graphql:
 # кодогенерация типов читает SDL-файл и не требует запущенного сервера.
-FROM python:3.13-slim AS api-builder
+FROM python:3.14-slim AS api-builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
 
@@ -61,7 +61,7 @@ RUN npm run build
 # ── Стейдж 3: runtime ─────────────────────────────────────────────────────
 # slim, а не alpine: musl ломает manylinux-колёса asyncpg и bcrypt и заставляет
 # собирать их из исходников. Slim с колёсами и меньше, и быстрее.
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ARG BUILD_BRANCH=unknown
 ARG BUILD_PIPELINE_ID=0
