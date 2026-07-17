@@ -6,7 +6,16 @@
 # ── Стейдж 1: бэкенд + экспорт GraphQL-схемы ──────────────────────────────
 # Бэкенд собирается ПЕРВЫМ, потому что фронтенду нужен его schema.graphql:
 # кодогенерация типов читает SDL-файл и не требует запущенного сервера.
-FROM python:3.14-slim AS api-builder
+#
+# ВНИМАНИЕ: тег ОБЯЗАН совпадать с packages/api/.python-version (сейчас 3.13),
+# и менять их можно только вместе. Ниже uv собирает venv по .python-version.
+# Если версия в теге другая, uv не возьмёт интерпретатор базового образа, а
+# скачает свой — в /root/.local/share/uv/python/. Venv будет ссылаться туда,
+# а в runtime-стейдж копируется только сам venv, и /root там недоступен
+# пользователю app (права 700). Итог: symlink не резолвится, любой скрипт из
+# venv падает с «Permission denied» и кодом 126 — при том что сборка образа
+# проходит успешно, и ломается только запуск. Так уже ловили миграции (PR #3).
+FROM python:3.13-slim AS api-builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/uv
 
@@ -61,7 +70,7 @@ RUN npm run build
 # ── Стейдж 3: runtime ─────────────────────────────────────────────────────
 # slim, а не alpine: musl ломает manylinux-колёса asyncpg и bcrypt и заставляет
 # собирать их из исходников. Slim с колёсами и меньше, и быстрее.
-FROM python:3.14-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 ARG BUILD_BRANCH=unknown
 ARG BUILD_PIPELINE_ID=0
