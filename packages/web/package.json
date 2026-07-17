@@ -16,7 +16,7 @@
   "dependencies": {
     "@ant-design/icons": "^5.5.2",
     "@ant-design/pro-components": "^2.8.2",
-    "@apollo/client": "^3.12.4",
+    "@apollo/client": "^4.2.7",
     "antd": "^5.22.5",
     "graphql": "^16.10.0",
     "i18next": "^24.2.0",
