@@ -5,7 +5,7 @@ description = "SalesLift — мультитенантный SaaS для анал
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.139.1",
-    "strawberry-graphql[fastapi]>=0.283",
+    "strawberry-graphql[fastapi]>=0.321.0",
     "uvicorn[standard]>=0.38",
     "sqlalchemy[asyncio]>=2.0.51",
     "asyncpg>=0.30",
