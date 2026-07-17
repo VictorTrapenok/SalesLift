@@ -36,7 +36,7 @@ PR от dependabot. Проверки типов, тесты и дымовой т
 проверки (required status checks) в репозитории не настроены.
 
 **Чтобы закрыть первую строку**, достаточно выпустить тег — см.
-[.github/readme.md](.github/readme.md):
+[.github/ci.md](.github/ci.md):
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
@@ -66,7 +66,7 @@ git tag v0.1.0 && git push origin v0.1.0
 - [x] Интерфейс: вход, регистрация, каркас кабинета, ru/en.
 - [x] Кодогенерация типов фронтенда из схемы бэкенда: рассинхрон ломает сборку.
 - [x] CI/CD на GitHub Actions: линтеры, типы, тесты, сборка образа с дымовым
-      тестом до публикации, релизы. См. [.github/readme.md](.github/readme.md).
+      тестом до публикации, релизы. См. [.github/ci.md](.github/ci.md).
 
 ## В работе
 
