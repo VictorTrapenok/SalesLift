@@ -55,13 +55,7 @@ export default function LoginPage(): JSX.Element {
         <Text type="secondary">{t('auth.login.subtitle')}</Text>
 
         {parsedError && (
-          <Alert
-            type="error"
-            showIcon
-            message={parsedError.message}
-            data-qa="login-error"
-            style={{ marginTop: 16 }}
-          />
+          <Alert type="error" showIcon message={parsedError.message} data-qa="login-error" style={{ marginTop: 16 }} />
         )}
 
         <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginTop: 24 }} requiredMark={false}>
