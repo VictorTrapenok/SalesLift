@@ -88,21 +88,18 @@ helm install saleslift oci://ghcr.io/victortrapenok/charts/saleslift \
 Python 3.13 · FastAPI · GraphQL · PostgreSQL 18 · TypeScript · React 19 ·
 Ant Design · Docker · Kubernetes
 
-Без Redis, без брокеров сообщений, без внешних зависимостей: чем меньше
-подвижных частей, тем меньше поводов не запуститься.
-
 ---
 
 ## Документация
 
-| Документ                                     | Для кого                                 |
-| -------------------------------------------- | ---------------------------------------- |
-| [ROADMAP.md](ROADMAP.md)                     | Что готово, что в работе, что дальше     |
-| [docs/development.md](docs/development.md)   | Разработка: окружение, команды, отладка  |
-| [docs/testing.md](docs/testing.md)           | Тесты: устройство и правила              |
-| [ARCHITECTURE.md](ARCHITECTURE.md)           | Устройство системы и глоссарий           |
-| [docs/adr/](docs/adr/)                       | Принятые решения и чем за них заплатили  |
-| [CLAUDE.md](CLAUDE.md)                       | Принципы и стиль кода                    |
+| Документ                                   | Для кого                                |
+| ------------------------------------------ | --------------------------------------- |
+| [ROADMAP.md](ROADMAP.md)                   | Что готово, что в работе, что дальше    |
+| [docs/development.md](docs/development.md) | Разработка: окружение, команды, отладка |
+| [docs/testing.md](docs/testing.md)         | Тесты: устройство и правила             |
+| [ARCHITECTURE.md](ARCHITECTURE.md)         | Устройство системы и глоссарий          |
+| [docs/adr/](docs/adr/)                     | Принятые решения и чем за них заплатили |
+| [CLAUDE.md](CLAUDE.md)                     | Принципы и стиль кода                   |
 
 ---
 
