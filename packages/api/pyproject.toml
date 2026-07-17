@@ -24,7 +24,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.9",
     "mypy>=1.14",
-    "strawberry-graphql[cli]>=0.283",
+    "strawberry-graphql[cli]>=0.321.0",
     "httpx>=0.28",
 ]
 # Активируется, когда появится файловый домен (звонки в S3 или локальной папке).
