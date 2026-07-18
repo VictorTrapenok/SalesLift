@@ -14,15 +14,18 @@ import strawberry
 from saleslift.graphql.errors import DomainErrorExtension
 from saleslift.graphql.resolvers.auth import AuthMutation, AuthQuery
 from saleslift.graphql.resolvers.health import HealthQuery
+from saleslift.graphql.resolvers.org_settings import OrgSettingsMutation, OrgSettingsQuery
+from saleslift.graphql.resolvers.profile import ProfileMutation
+from saleslift.graphql.resolvers.users import UsersMutation, UsersQuery
 
 
 @strawberry.type(description="Корневые запросы")
-class Query(HealthQuery, AuthQuery):
+class Query(HealthQuery, AuthQuery, UsersQuery, OrgSettingsQuery):
     """Все запросы API."""
 
 
 @strawberry.type(description="Корневые мутации")
-class Mutation(AuthMutation):
+class Mutation(AuthMutation, UsersMutation, ProfileMutation, OrgSettingsMutation):
     """Все мутации API."""
 
 

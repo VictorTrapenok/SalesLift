@@ -69,6 +69,10 @@ const enUS = {
   'orgSettings.title': 'Company settings',
   'orgSettings.companyName': 'Company name',
   'orgSettings.companyNameRequired': 'Please enter the company name',
+  'orgSettings.country': 'Country',
+  'orgSettings.countryPlaceholder': 'Two-letter code, e.g. DE',
+  'orgSettings.website': 'Website',
+  'orgSettings.contactPhone': 'Contact phone',
   'orgSettings.saved': 'Settings saved',
 
   // ── Профиль ────────────────────────────────────────────────────────────

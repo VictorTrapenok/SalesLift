@@ -8,7 +8,7 @@ import strawberry
 from saleslift.graphql.types.tenant import Tenant
 from saleslift.models.user import User as UserModel
 from saleslift.services.permissions import UserPermissions
-from saleslift.services.users.user_roles_permission import get_effective_permissions
+from saleslift.services.users.user_roles_permission import get_effective_permissions, get_role_name
 
 #: Регистрация enum прав в GraphQL-схеме.
 #:
@@ -44,6 +44,12 @@ class User:
     last_login_at: datetime | None
     tenant: Tenant
 
+    #: Маркер базовой роли (`admin`/`manager`/`viewer`) — ДЛЯ ПОКАЗА в списке
+    #: сотрудников. Гейтить UI по нему нельзя: для этого есть
+    #: `effective_permissions`. Отдаётся отдельным полем, чтобы фронтенд не
+    #: выковыривал роль из `permissions`, где порядок ничего не значит.
+    role: str
+
     #: Базовые записи из БД (`admin`/`manager`/`viewer` + точечные добавки).
     #: Для гейтинга UI использовать не это, а `effective_permissions`.
     permissions: list[str]
@@ -70,6 +76,7 @@ class User:
             status=model.status,
             last_login_at=model.last_login_at,
             tenant=Tenant.from_model(model.tenant),
+            role=get_role_name(model),
             permissions=list(model.permissions),
             effective_permissions=get_effective_permissions(model),
         )

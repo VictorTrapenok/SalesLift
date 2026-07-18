@@ -19,6 +19,7 @@ MESSAGES: dict[str, str] = {
     # ── Сотрудники ───────────────────────────────────────────────────────
     "users.notFound": "Employee not found",
     "users.emailTaken": "This email is already registered",
+    "users.invalidRole": "Unknown role",
     # ── Настройки компании ───────────────────────────────────────────────
     "orgSettings.companyNameRequired": "Please enter the company name",
     # ── Профиль ──────────────────────────────────────────────────────────

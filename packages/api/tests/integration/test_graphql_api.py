@@ -190,3 +190,159 @@ class TestHealth:
     async def test_health_публичен(self, client: AsyncClient) -> None:
         result = await _gql(client, "{ health { status version build { branch } } }")
         assert result["data"]["health"]["status"] == "ok"
+
+
+EMPLOYEES_QUERY = """
+query Employees { resolverUsersList { id name email role } }
+"""
+
+CREATE_EMPLOYEE_MUTATION = """
+mutation CreateEmployee($input: CreateEmployeeInput!) {
+  resolverUsersCreate(input: $input) { id name email role }
+}
+"""
+
+ORG_SETTINGS_UPDATE_MUTATION = """
+mutation UpdateOrgSettings($input: UpdateOrgSettingsInput!) {
+  resolverOrgSettingsUpdate(input: $input) { id name country }
+}
+"""
+
+CHANGE_PASSWORD_MUTATION = """
+mutation ChangePassword($input: ChangePasswordInput!) {
+  resolverProfileChangePassword(input: $input) { id }
+}
+"""
+
+
+async def _register_and_get_token(client: AsyncClient, **overrides: str) -> tuple[str, dict[str, Any]]:
+    """Регистрирует компанию и возвращает токен её администратора."""
+    variables = _register_vars(**overrides)
+    result = await _gql(client, REGISTER_MUTATION, variables)
+    assert "errors" not in result, result
+    return result["data"]["resolverAuthRegister"]["token"], variables["input"]
+
+
+class TestCabinetPages:
+    """Страницы кабинета сквозь HTTP: сотрудники, настройки, профиль."""
+
+    async def test_администратор_заводит_сотрудника_и_видит_его_в_списке(self, client: AsyncClient) -> None:
+        token, _ = await _register_and_get_token(client)
+
+        created = await _gql(
+            client,
+            CREATE_EMPLOYEE_MUTATION,
+            {
+                "input": {
+                    "name": "Пётр Сидоров",
+                    "email": f"emp-{uuid.uuid4().hex[:8]}@example.com",
+                    "password": "securePass123",
+                    "role": "manager",
+                }
+            },
+            token=token,
+        )
+        assert "errors" not in created, created
+        assert created["data"]["resolverUsersCreate"]["role"] == "manager"
+
+        listed = await _gql(client, EMPLOYEES_QUERY, token=token)
+        emails = [employee["email"] for employee in listed["data"]["resolverUsersList"]]
+        assert created["data"]["resolverUsersCreate"]["email"] in emails
+
+    async def test_список_не_протекает_между_компаниями(self, client: AsyncClient) -> None:
+        """Изоляция тенантов — сквозная проверка, а не только на уровне сервиса."""
+        _, first_admin = await _register_and_get_token(client)
+        second_token, _ = await _register_and_get_token(client)
+
+        listed = await _gql(client, EMPLOYEES_QUERY, token=second_token)
+
+        emails = [employee["email"] for employee in listed["data"]["resolverUsersList"]]
+        assert first_admin["email"] not in emails
+
+    async def test_сотрудник_без_права_не_заводит_других(self, client: AsyncClient) -> None:
+        """На каждое HasPermission на фронтенде — require_permission в резолвере."""
+        admin_token, _ = await _register_and_get_token(client)
+        viewer_email = f"viewer-{uuid.uuid4().hex[:8]}@example.com"
+
+        await _gql(
+            client,
+            CREATE_EMPLOYEE_MUTATION,
+            {"input": {"name": "Наблюдатель", "email": viewer_email, "password": "securePass123", "role": "viewer"}},
+            token=admin_token,
+        )
+        viewer = await _gql(
+            client,
+            LOGIN_MUTATION,
+            {"input": {"email": viewer_email, "password": "securePass123"}},
+        )
+        viewer_token = viewer["data"]["resolverAuthLogin"]["token"]
+
+        result = await _gql(
+            client,
+            CREATE_EMPLOYEE_MUTATION,
+            {
+                "input": {
+                    "name": "Кто-то ещё",
+                    "email": f"other-{uuid.uuid4().hex[:8]}@example.com",
+                    "password": "securePass123",
+                    "role": "viewer",
+                }
+            },
+            token=viewer_token,
+        )
+
+        assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+
+    async def test_настройки_компании_сохраняются(self, client: AsyncClient) -> None:
+        token, _ = await _register_and_get_token(client)
+
+        result = await _gql(
+            client,
+            ORG_SETTINGS_UPDATE_MUTATION,
+            {"input": {"name": "ООО Незабудка", "country": "RU"}},
+            token=token,
+        )
+
+        assert "errors" not in result, result
+        assert result["data"]["resolverOrgSettingsUpdate"]["name"] == "ООО Незабудка"
+        assert result["data"]["resolverOrgSettingsUpdate"]["country"] == "RU"
+
+    async def test_смена_пароля_меняет_пароль_входа(self, client: AsyncClient) -> None:
+        token, admin = await _register_and_get_token(client)
+
+        changed = await _gql(
+            client,
+            CHANGE_PASSWORD_MUTATION,
+            {"input": {"currentPassword": "securePass123", "newPassword": "brandNewPass456"}},
+            token=token,
+        )
+        assert "errors" not in changed, changed
+
+        with_old = await _gql(
+            client,
+            LOGIN_MUTATION,
+            {"input": {"email": admin["email"], "password": "securePass123"}},
+        )
+        with_new = await _gql(
+            client,
+            LOGIN_MUTATION,
+            {"input": {"email": admin["email"], "password": "brandNewPass456"}},
+        )
+
+        assert with_old["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+        assert with_new["data"]["resolverAuthLogin"]["token"]
+
+    async def test_неверный_текущий_пароль_несёт_имя_поля(self, client: AsyncClient) -> None:
+        """`field` нужен фронтенду, чтобы подсветить конкретный инпут."""
+        token, _ = await _register_and_get_token(client)
+
+        result = await _gql(
+            client,
+            CHANGE_PASSWORD_MUTATION,
+            {"input": {"currentPassword": "wrongPass", "newPassword": "brandNewPass456"}},
+            token=token,
+            locale="ru",
+        )
+
+        assert result["errors"][0]["extensions"]["field"] == "currentPassword"
+        assert result["errors"][0]["message"] == "Текущий пароль указан неверно"

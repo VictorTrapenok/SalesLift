@@ -11,6 +11,20 @@ type BuildInfo {
   buildId: String!
 }
 
+"""Смена собственного пароля"""
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+"""Данные нового сотрудника"""
+input CreateEmployeeInput {
+  name: String!
+  email: String!
+  password: String!
+  role: String!
+}
+
 """Date with time (isoformat)"""
 scalar DateTime
 
@@ -34,6 +48,18 @@ type Mutation {
 
   """Войти по e-mail и паролю"""
   resolverAuthLogin(input: LoginInput!): AuthPayload!
+
+  """Завести сотрудника в компании"""
+  resolverUsersCreate(input: CreateEmployeeInput!): User!
+
+  """Изменить свой профиль"""
+  resolverProfileUpdate(input: UpdateProfileInput!): User!
+
+  """Сменить свой пароль"""
+  resolverProfileChangePassword(input: ChangePasswordInput!): User!
+
+  """Сохранить настройки компании"""
+  resolverOrgSettingsUpdate(input: UpdateOrgSettingsInput!): Tenant!
 }
 
 """Корневые запросы"""
@@ -43,6 +69,12 @@ type Query {
 
   """Профиль текущего сотрудника"""
   resolverAuthMe: User!
+
+  """Список сотрудников компании"""
+  resolverUsersList: [User!]!
+
+  """Настройки компании текущего сотрудника"""
+  resolverOrgSettingsGet: Tenant!
 }
 
 """Данные регистрации новой компании"""
@@ -66,6 +98,21 @@ type Tenant {
 
 scalar UUID
 
+"""Настройки компании"""
+input UpdateOrgSettingsInput {
+  name: String!
+  country: String = null
+  website: String = null
+  contactPhone: String = null
+}
+
+"""Изменения профиля"""
+input UpdateProfileInput {
+  name: String!
+  bio: String = null
+  locale: String = null
+}
+
 """Сотрудник компании"""
 type User {
   id: UUID!
@@ -76,6 +123,7 @@ type User {
   status: String!
   lastLoginAt: DateTime
   tenant: Tenant!
+  role: String!
   permissions: [String!]!
   effectivePermissions: [UserPermissions!]!
 }
