@@ -82,7 +82,11 @@ services/
 │   ├── auth_service.py         регистрация компании, вход
 │   └── tokens.py               выпуск и проверка JWT
 ├── users/
-│   └── user_roles_permission.py  маппинг ролей → права, гарды резолверов
+│   ├── user_roles_permission.py  маппинг ролей → права, гарды резолверов
+│   ├── users_service.py        сотрудники компании: список, заведение
+│   └── profile_service.py      свой профиль: «о себе», язык, смена пароля
+├── tenants/
+│   └── tenant_service.py       настройки компании
 └── tasks/                      очередь фоновых задач
 ```
 

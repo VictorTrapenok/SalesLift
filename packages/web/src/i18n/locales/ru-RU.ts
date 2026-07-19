@@ -67,6 +67,10 @@ const ruRU: typeof enUS = {
   'orgSettings.title': 'Настройки компании',
   'orgSettings.companyName': 'Название компании',
   'orgSettings.companyNameRequired': 'Введите название компании',
+  'orgSettings.country': 'Страна',
+  'orgSettings.countryPlaceholder': 'Двухбуквенный код, например RU',
+  'orgSettings.website': 'Сайт',
+  'orgSettings.contactPhone': 'Контактный телефон',
   'orgSettings.saved': 'Настройки сохранены',
 
   // ── Профиль ────────────────────────────────────────────────────────────

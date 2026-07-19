@@ -80,6 +80,23 @@ def get_effective_permissions(user: User | None) -> list[UserPermissions]:
     return sorted(effective, key=lambda p: p.value)
 
 
+def get_role_name(user: User) -> str:
+    """Возвращает маркер базовой роли из `users.permissions`.
+
+    Нужен ровно для одного: показать роль в списке сотрудников. Для проверок
+    доступа использовать нельзя — только `get_effective_permissions()`.
+
+    Порядок записей в массиве значения не несёт, поэтому роль ищется
+    перебором, а не по индексу. Если маркера нет вовсе (данные заведены в
+    обход сервисов), возвращается самая слабая роль: показать «viewer» честнее,
+    чем упасть на отрисовке таблицы.
+    """
+    for entry in user.permissions:
+        if entry in USERS_ROLE_MAP:
+            return entry
+    return "viewer"
+
+
 @dataclass(frozen=True)
 class AuthenticatedContext:
     """Контекст запроса, про который ДОКАЗАНО, что пользователь есть.

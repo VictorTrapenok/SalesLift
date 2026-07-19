@@ -1,7 +1,7 @@
 import { apolloClient } from '@/graphql/client';
 import { router } from '@/router';
 import { ApolloProvider } from '@apollo/client';
-import { ConfigProvider } from 'antd';
+import { App as AntdApp, ConfigProvider } from 'antd';
 import enUS from 'antd/locale/en_US';
 import ruRU from 'antd/locale/ru_RU';
 import type { JSX } from 'react';
@@ -18,7 +18,10 @@ const ANTD_LOCALES = {
  * Корень приложения.
  *
  * Порядок провайдеров: Apollo снаружи (роутер и страницы шлют запросы),
- * ConfigProvider внутри (ему нужен текущий язык из i18n).
+ * ConfigProvider внутри (ему нужен текущий язык из i18n), а внутри него —
+ * AntdApp: он раздаёт контекст для `App.useApp()`, через который страницы
+ * показывают уведомления. Без него статический `message.success` работает, но
+ * игнорирует и тему, и локаль ConfigProvider'а.
  */
 export default function App(): JSX.Element {
   const { i18n } = useTranslation();
@@ -27,7 +30,9 @@ export default function App(): JSX.Element {
   return (
     <ApolloProvider client={apolloClient}>
       <ConfigProvider locale={antdLocale}>
-        <RouterProvider router={router} />
+        <AntdApp>
+          <RouterProvider router={router} />
+        </AntdApp>
       </ConfigProvider>
     </ApolloProvider>
   );

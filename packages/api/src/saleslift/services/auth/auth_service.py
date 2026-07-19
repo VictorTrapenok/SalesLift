@@ -77,6 +77,16 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
+def is_valid_email(email: str) -> bool:
+    """Проверяет формат e-mail.
+
+    Публичная функция, а не приватная регулярка: тот же формат проверяет
+    заведение сотрудника администратором (`services/users/users_service.py`),
+    и расходиться эти проверки не должны.
+    """
+    return _EMAIL_RE.match(email) is not None
+
+
 def normalize_email(email: str) -> str:
     """Приводит e-mail к каноническому виду.
 
@@ -112,7 +122,7 @@ class AuthService:
             raise ValidationError("auth.companyNameRequired", field="companyName")
         if not admin_name:
             raise ValidationError("auth.nameRequired", field="adminName")
-        if not _EMAIL_RE.match(email):
+        if not is_valid_email(email):
             raise ValidationError("auth.invalidEmail", field="email")
         if len(data.password) < MIN_PASSWORD_LENGTH:
             raise ValidationError("auth.passwordTooShort", field="password")
