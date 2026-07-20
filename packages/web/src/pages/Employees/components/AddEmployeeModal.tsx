@@ -71,6 +71,7 @@ export default function AddEmployeeModal({ open, onClose, onCreated }: AddEmploy
       confirmLoading={loading}
       onOk={(): void => void form.submit()}
       onCancel={handleCancel}
+      okButtonProps={{ 'data-qa': 'employees-add-submit' }}
       data-qa="employees-add-modal"
       destroyOnClose
     >
