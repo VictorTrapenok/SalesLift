@@ -13,7 +13,7 @@ from saleslift.models import Tenant
 from saleslift.services.permissions import UserPermissions
 from saleslift.services.users.user_roles_permission import get_effective_permissions, get_role_name
 from saleslift.services.users.users_service import CreateEmployeeInput, users_service
-from saleslift.utils.errors import ValidationError
+from saleslift.utils.errors import NotFoundError, ValidationError
 
 
 def _employee_input(**overrides: str) -> CreateEmployeeInput:
@@ -165,3 +165,147 @@ class TestListEmployees:
         employees = await users_service.list_employees(session, tenant.id)
 
         assert deleted_id not in [employee.id for employee in employees]
+
+
+class TestChangeRole:
+    """Смена роли сотрудника."""
+
+    async def test_меняет_роль(self, session: AsyncSession, tenant: Tenant) -> None:
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(role="viewer"))
+
+        updated = await users_service.change_role(session, tenant.id, actor_id, employee.id, "manager")
+
+        assert get_role_name(updated) == "manager"
+        assert UserPermissions.Manager in get_effective_permissions(updated)
+
+    async def test_сохраняет_точечные_добавки_прав(self, session: AsyncSession, tenant: Tenant) -> None:
+        """Меняется только маркер роли, гранулярные права остаются."""
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(role="viewer"))
+        employee.permissions = ["viewer", "Permission_org_settings_see"]
+        await session.commit()
+
+        updated = await users_service.change_role(session, tenant.id, actor_id, employee.id, "manager")
+
+        assert "Permission_org_settings_see" in updated.permissions
+        assert get_role_name(updated) == "manager"
+
+    async def test_неизвестная_роль_отвергается(self, session: AsyncSession, tenant: Tenant) -> None:
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input())
+
+        with pytest.raises(ValidationError) as err:
+            await users_service.change_role(session, tenant.id, actor_id, employee.id, "superuser")
+
+        assert err.value.i18n_key == "users.invalidRole"
+
+    async def test_нельзя_менять_свою_роль(self, session: AsyncSession, tenant: Tenant) -> None:
+        """Иначе единственный администратор разжаловал бы сам себя до нуля прав."""
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(role="admin"))
+
+        with pytest.raises(ValidationError) as err:
+            await users_service.change_role(session, tenant.id, employee.id, employee.id, "viewer")
+
+        assert err.value.i18n_key == "users.cannotManageSelf"
+
+    async def test_нельзя_менять_роль_чужому_тенанту(
+        self,
+        session: AsyncSession,
+        tenant: Tenant,
+        other_tenant: Tenant,
+    ) -> None:
+        """Изоляция тенантов: сотрудника чужой компании не тронуть даже зная id."""
+        actor_id = uuid.uuid4()
+        alien = await users_service.create_employee(session, other_tenant.id, _employee_input())
+
+        with pytest.raises(NotFoundError):
+            await users_service.change_role(session, tenant.id, actor_id, alien.id, "manager")
+
+
+class TestSetStatus:
+    """Отключение и включение сотрудника."""
+
+    async def test_отключает_и_включает(self, session: AsyncSession, tenant: Tenant) -> None:
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input())
+
+        suspended = await users_service.set_status(session, tenant.id, actor_id, employee.id, "suspended")
+        assert suspended.status == "suspended"
+
+        activated = await users_service.set_status(session, tenant.id, actor_id, employee.id, "active")
+        assert activated.status == "active"
+
+    async def test_неизвестный_статус_отвергается(self, session: AsyncSession, tenant: Tenant) -> None:
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input())
+
+        with pytest.raises(ValidationError) as err:
+            await users_service.set_status(session, tenant.id, actor_id, employee.id, "banned")
+
+        assert err.value.i18n_key == "users.invalidStatus"
+
+    async def test_нельзя_отключить_себя(self, session: AsyncSession, tenant: Tenant) -> None:
+        """Отключить себя — мгновенно лишиться доступа."""
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(role="admin"))
+
+        with pytest.raises(ValidationError) as err:
+            await users_service.set_status(session, tenant.id, employee.id, employee.id, "suspended")
+
+        assert err.value.i18n_key == "users.cannotManageSelf"
+
+    async def test_нельзя_отключить_чужому_тенанту(
+        self,
+        session: AsyncSession,
+        tenant: Tenant,
+        other_tenant: Tenant,
+    ) -> None:
+        actor_id = uuid.uuid4()
+        alien = await users_service.create_employee(session, other_tenant.id, _employee_input())
+
+        with pytest.raises(NotFoundError):
+            await users_service.set_status(session, tenant.id, actor_id, alien.id, "suspended")
+
+
+class TestDeleteEmployee:
+    """Удаление сотрудника."""
+
+    async def test_удаляет_и_прячет_из_списка(self, session: AsyncSession, tenant: Tenant) -> None:
+        actor_id = uuid.uuid4()
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(name="Уволенный"))
+
+        await users_service.delete_employee(session, tenant.id, actor_id, employee.id)
+
+        employees = await users_service.list_employees(session, tenant.id)
+        assert employee.id not in [e.id for e in employees]
+
+    async def test_освобождает_email(self, session: AsyncSession, tenant: Tenant) -> None:
+        """Индекс уникальности частичный: адрес уволенного можно завести заново."""
+        actor_id = uuid.uuid4()
+        data = _employee_input()
+        employee = await users_service.create_employee(session, tenant.id, data)
+        await users_service.delete_employee(session, tenant.id, actor_id, employee.id)
+
+        # Тот же e-mail снова свободен.
+        again = await users_service.create_employee(session, tenant.id, _employee_input(email=data.email))
+        assert again.email == data.email
+
+    async def test_нельзя_удалить_себя(self, session: AsyncSession, tenant: Tenant) -> None:
+        employee = await users_service.create_employee(session, tenant.id, _employee_input(role="admin"))
+
+        with pytest.raises(ValidationError) as err:
+            await users_service.delete_employee(session, tenant.id, employee.id, employee.id)
+
+        assert err.value.i18n_key == "users.cannotManageSelf"
+
+    async def test_нельзя_удалить_чужому_тенанту(
+        self,
+        session: AsyncSession,
+        tenant: Tenant,
+        other_tenant: Tenant,
+    ) -> None:
+        actor_id = uuid.uuid4()
+        alien = await users_service.create_employee(session, other_tenant.id, _employee_input())
+
+        with pytest.raises(NotFoundError):
+            await users_service.delete_employee(session, tenant.id, actor_id, alien.id)
