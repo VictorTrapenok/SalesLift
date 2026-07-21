@@ -72,63 +72,72 @@ export default function AddEmployeeModal({ open, onClose, onCreated }: AddEmploy
       onOk={(): void => void form.submit()}
       onCancel={handleCancel}
       okButtonProps={{ 'data-qa': 'employees-add-submit' }}
-      data-qa="employees-add-modal"
       destroyOnClose
     >
-      {parsedError && (
-        <Alert
-          type="error"
-          showIcon
-          message={parsedError.message}
-          data-qa="employees-add-error"
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleSubmit}
-        requiredMark={false}
-        initialValues={{ role: 'viewer' }}
-      >
-        <Form.Item
-          name="name"
-          label={t('employees.columnName')}
-          rules={[{ required: true, message: t('auth.register.adminNameRequired') }]}
-        >
-          <Input data-qa="employees-add-name" />
-        </Form.Item>
-
-        <Form.Item
-          name="email"
-          label={t('employees.columnEmail')}
-          rules={[
-            { required: true, message: t('auth.register.emailRequired') },
-            { type: 'email', message: t('auth.register.emailInvalid') },
-          ]}
-        >
-          <Input type="email" data-qa="employees-add-email" />
-        </Form.Item>
-
-        <Form.Item
-          name="password"
-          label={t('auth.register.password')}
-          rules={[
-            { required: true, message: t('auth.register.passwordRequired') },
-            { min: 8, message: t('auth.register.passwordTooShort') },
-          ]}
-        >
-          <Input.Password autoComplete="new-password" data-qa="employees-add-password" />
-        </Form.Item>
-
-        <Form.Item name="role" label={t('employees.columnRole')}>
-          <Select
-            data-qa="employees-add-role"
-            options={ROLE_NAMES.map((role) => ({ value: role, label: t(ROLE_LABEL_KEYS[role]) }))}
+      {/*
+        `data-qa` вешаем на элемент внутри тела окна, а не на сам `Modal`:
+        AntD прокидывает `data-*` на внешний `.ant-modal-root`, который
+        оборачивает только `position: fixed` детей и потому схлопывается в
+        нулевой размер — Playwright всегда считает его скрытым. Этот же div
+        монтируется только при открытом окне (`destroyOnClose`), поэтому
+        `toBeVisible`/`toBeHidden` в e2e работают корректно.
+      */}
+      <div data-qa="employees-add-modal">
+        {parsedError && (
+          <Alert
+            type="error"
+            showIcon
+            message={parsedError.message}
+            data-qa="employees-add-error"
+            style={{ marginBottom: 16 }}
           />
-        </Form.Item>
-      </Form>
+        )}
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+          requiredMark={false}
+          initialValues={{ role: 'viewer' }}
+        >
+          <Form.Item
+            name="name"
+            label={t('employees.columnName')}
+            rules={[{ required: true, message: t('auth.register.adminNameRequired') }]}
+          >
+            <Input data-qa="employees-add-name" />
+          </Form.Item>
+
+          <Form.Item
+            name="email"
+            label={t('employees.columnEmail')}
+            rules={[
+              { required: true, message: t('auth.register.emailRequired') },
+              { type: 'email', message: t('auth.register.emailInvalid') },
+            ]}
+          >
+            <Input type="email" data-qa="employees-add-email" />
+          </Form.Item>
+
+          <Form.Item
+            name="password"
+            label={t('auth.register.password')}
+            rules={[
+              { required: true, message: t('auth.register.passwordRequired') },
+              { min: 8, message: t('auth.register.passwordTooShort') },
+            ]}
+          >
+            <Input.Password autoComplete="new-password" data-qa="employees-add-password" />
+          </Form.Item>
+
+          <Form.Item name="role" label={t('employees.columnRole')}>
+            <Select
+              data-qa="employees-add-role"
+              options={ROLE_NAMES.map((role) => ({ value: role, label: t(ROLE_LABEL_KEYS[role]) }))}
+            />
+          </Form.Item>
+        </Form>
+      </div>
     </Modal>
   );
 }
