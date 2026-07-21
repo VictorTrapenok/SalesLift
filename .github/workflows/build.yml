@@ -137,6 +137,29 @@ jobs:
       - name: Smoke test
         run: BASE_URL=http://localhost:8000 bash scripts/smoke-test.sh
 
+      # ── Браузерные проверки ─────────────────────────────────────────────
+      # Те же ворота, что и дымовой тест, но глазами пользователя: клики по
+      # интерфейсу против того же собранного образа. Провал так же не пускает
+      # образ в registry. Подробности — в e2e/README.md.
+      - name: Set up Node for e2e
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: e2e (Playwright)
+        working-directory: e2e
+        run: BASE_URL=http://localhost:8000 npm test
+
       # ── Публикация ──────────────────────────────────────────────────────
       # Сюда мы попадаем, только если всё выше прошло.
       - name: Publish image
@@ -193,6 +216,21 @@ jobs:
           if [ "${{ job.status }}" != "success" ]; then
             echo "::group::Application logs"; tail -100 .ci-artifacts/app.log; echo "::endgroup::"
           fi
+
+      # Видео каждого сценария плюс HTML-отчёт Playwright — отдельным артефактом
+      # со сроком жизни 1 день. Артефакт GitHub скачивается zip'ом: видео
+      # `.webm` смотрятся в браузере, отчёт открывается его `index.html`.
+      # Инлайнового проигрывания в интерфейсе GitHub нет — только скачивание.
+      - name: Upload Playwright videos and report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-videos-${{ github.run_number }}
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 1
+          if-no-files-found: ignore
 
       - name: Artifacts
         if: always()

@@ -346,3 +346,149 @@ class TestCabinetPages:
 
         assert result["errors"][0]["extensions"]["field"] == "currentPassword"
         assert result["errors"][0]["message"] == "Текущий пароль указан неверно"
+
+
+CHANGE_ROLE_MUTATION = """
+mutation ChangeRole($input: ChangeRoleInput!) {
+  resolverUsersChangeRole(input: $input) { id role }
+}
+"""
+
+SET_STATUS_MUTATION = """
+mutation SetStatus($input: SetStatusInput!) {
+  resolverUsersSetStatus(input: $input) { id status }
+}
+"""
+
+DELETE_EMPLOYEE_MUTATION = """
+mutation DeleteEmployee($input: DeleteEmployeeInput!) {
+  resolverUsersDelete(input: $input) { id }
+}
+"""
+
+
+async def _create_employee(client: AsyncClient, admin_token: str, role: str) -> dict[str, Any]:
+    """Заводит сотрудника и возвращает его узел из ответа."""
+    result = await _gql(
+        client,
+        CREATE_EMPLOYEE_MUTATION,
+        {
+            "input": {
+                "name": "Сотрудник",
+                "email": f"emp-{uuid.uuid4().hex[:8]}@example.com",
+                "password": "securePass123",
+                "role": role,
+            }
+        },
+        token=admin_token,
+    )
+    assert "errors" not in result, result
+    node: dict[str, Any] = result["data"]["resolverUsersCreate"]
+    return node
+
+
+class TestEmployeeManagement:
+    """Управление сотрудниками сквозь HTTP: роль, статус, удаление."""
+
+    async def test_администратор_меняет_роль(self, client: AsyncClient) -> None:
+        admin_token, _ = await _register_and_get_token(client)
+        employee = await _create_employee(client, admin_token, "viewer")
+
+        result = await _gql(
+            client,
+            CHANGE_ROLE_MUTATION,
+            {"input": {"userId": employee["id"], "role": "manager"}},
+            token=admin_token,
+        )
+
+        assert result["data"]["resolverUsersChangeRole"]["role"] == "manager"
+
+    async def test_отключённый_сотрудник_не_может_войти(self, client: AsyncClient) -> None:
+        """Статус читается на каждом запросе — отключение действует сразу."""
+        admin_token, _ = await _register_and_get_token(client)
+        employee = await _create_employee(client, admin_token, "manager")
+
+        # Узнаём e-mail заведённого: он в списке.
+        listed = await _gql(client, EMPLOYEES_QUERY, token=admin_token)
+        email = next(e["email"] for e in listed["data"]["resolverUsersList"] if e["id"] == employee["id"])
+
+        suspended = await _gql(
+            client,
+            SET_STATUS_MUTATION,
+            {"input": {"userId": employee["id"], "status": "suspended"}},
+            token=admin_token,
+        )
+        assert suspended["data"]["resolverUsersSetStatus"]["status"] == "suspended"
+
+        login = await _gql(client, LOGIN_MUTATION, {"input": {"email": email, "password": "securePass123"}})
+        assert login["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+    async def test_удалённый_сотрудник_пропадает_из_списка(self, client: AsyncClient) -> None:
+        admin_token, _ = await _register_and_get_token(client)
+        employee = await _create_employee(client, admin_token, "viewer")
+
+        deleted = await _gql(
+            client,
+            DELETE_EMPLOYEE_MUTATION,
+            {"input": {"userId": employee["id"]}},
+            token=admin_token,
+        )
+        assert "errors" not in deleted, deleted
+
+        listed = await _gql(client, EMPLOYEES_QUERY, token=admin_token)
+        assert employee["id"] not in [e["id"] for e in listed["data"]["resolverUsersList"]]
+
+    async def test_менеджер_не_может_менять_роли(self, client: AsyncClient) -> None:
+        """На каждое HasPermission на фронтенде — require_permission в резолвере."""
+        admin_token, _ = await _register_and_get_token(client)
+        manager = await _create_employee(client, admin_token, "manager")
+        victim = await _create_employee(client, admin_token, "viewer")
+
+        listed = await _gql(client, EMPLOYEES_QUERY, token=admin_token)
+        manager_email = next(e["email"] for e in listed["data"]["resolverUsersList"] if e["id"] == manager["id"])
+        manager_login = await _gql(
+            client,
+            LOGIN_MUTATION,
+            {"input": {"email": manager_email, "password": "securePass123"}},
+        )
+        manager_token = manager_login["data"]["resolverAuthLogin"]["token"]
+
+        result = await _gql(
+            client,
+            CHANGE_ROLE_MUTATION,
+            {"input": {"userId": victim["id"], "role": "admin"}},
+            token=manager_token,
+        )
+
+        assert result["errors"][0]["extensions"]["code"] == "FORBIDDEN"
+
+    async def test_нельзя_удалить_чужого_сотрудника(self, client: AsyncClient) -> None:
+        """Сквозная проверка изоляции: чужой id недоступен даже администратору."""
+        first_token, _ = await _register_and_get_token(client)
+        second_token, _ = await _register_and_get_token(client)
+        alien = await _create_employee(client, first_token, "viewer")
+
+        result = await _gql(
+            client,
+            DELETE_EMPLOYEE_MUTATION,
+            {"input": {"userId": alien["id"]}},
+            token=second_token,
+        )
+
+        assert result["errors"][0]["extensions"]["code"] == "NOT_FOUND"
+
+    async def test_нельзя_удалить_себя(self, client: AsyncClient) -> None:
+        admin_token, _ = await _register_and_get_token(client)
+        me = await _gql(client, "query { resolverAuthMe { id } }", token=admin_token)
+        my_id = me["data"]["resolverAuthMe"]["id"]
+
+        result = await _gql(
+            client,
+            DELETE_EMPLOYEE_MUTATION,
+            {"input": {"userId": my_id}},
+            token=admin_token,
+            locale="ru",
+        )
+
+        assert result["errors"][0]["extensions"]["code"] == "BAD_USER_INPUT"
+        assert result["errors"][0]["message"] == "Свою учётную запись здесь менять нельзя"

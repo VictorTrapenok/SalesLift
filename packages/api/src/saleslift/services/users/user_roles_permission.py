@@ -32,6 +32,8 @@ USERS_ROLE_MAP: dict[str, list[UserPermissions]] = {
         UserPermissions.Viewer,
         UserPermissions.Permission_users_see,
         UserPermissions.Permission_users_create,
+        UserPermissions.Permission_users_edit,
+        UserPermissions.Permission_users_delete,
         UserPermissions.Permission_org_settings_see,
         UserPermissions.Permission_org_settings_edit,
     ],

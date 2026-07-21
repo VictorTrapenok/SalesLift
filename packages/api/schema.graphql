@@ -17,6 +17,12 @@ input ChangePasswordInput {
   newPassword: String!
 }
 
+"""Смена роли сотрудника"""
+input ChangeRoleInput {
+  userId: UUID!
+  role: String!
+}
+
 """Данные нового сотрудника"""
 input CreateEmployeeInput {
   name: String!
@@ -27,6 +33,11 @@ input CreateEmployeeInput {
 
 """Date with time (isoformat)"""
 scalar DateTime
+
+"""Удаление сотрудника"""
+input DeleteEmployeeInput {
+  userId: UUID!
+}
 
 """Состояние сервиса"""
 type HealthStatus {
@@ -51,6 +62,15 @@ type Mutation {
 
   """Завести сотрудника в компании"""
   resolverUsersCreate(input: CreateEmployeeInput!): User!
+
+  """Сменить роль сотрудника"""
+  resolverUsersChangeRole(input: ChangeRoleInput!): User!
+
+  """Отключить или включить сотрудника"""
+  resolverUsersSetStatus(input: SetStatusInput!): User!
+
+  """Удалить сотрудника"""
+  resolverUsersDelete(input: DeleteEmployeeInput!): User!
 
   """Изменить свой профиль"""
   resolverProfileUpdate(input: UpdateProfileInput!): User!
@@ -84,6 +104,12 @@ input RegisterInput {
   email: String!
   password: String!
   locale: String! = "en"
+}
+
+"""Отключение или включение сотрудника"""
+input SetStatusInput {
+  userId: UUID!
+  status: String!
 }
 
 """Компания-клиент"""
@@ -134,6 +160,8 @@ enum UserPermissions {
   Admin
   Permission_users_see
   Permission_users_create
+  Permission_users_edit
+  Permission_users_delete
   Permission_org_settings_see
   Permission_org_settings_edit
 }

@@ -15,6 +15,7 @@
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -22,14 +23,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from saleslift.i18n import resolve_locale
-from saleslift.models.user import USER_ROLE_NAMES, User
+from saleslift.models.user import USER_ROLE_NAMES, USER_STATUSES, User
 from saleslift.services.auth.auth_service import (
     MIN_PASSWORD_LENGTH,
     hash_password,
     is_valid_email,
     normalize_email,
 )
-from saleslift.utils.errors import ValidationError
+from saleslift.services.users.user_roles_permission import USERS_ROLE_MAP
+from saleslift.utils.errors import NotFoundError, ValidationError
 from saleslift.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -120,6 +122,124 @@ class UsersService:
 
         log.info("Заведён сотрудник", tenant_id=str(tenant_id), user_id=str(user.id), role=data.role)
         return user
+
+    async def change_role(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        user_id: uuid.UUID,
+        role: str,
+    ) -> User:
+        """Меняет базовую роль сотрудника.
+
+        Точечные добавки к правам (значения `UserPermissions` сверх роли)
+        сохраняются: меняется только маркер роли, а не весь набор.
+        """
+        if role not in USER_ROLE_NAMES:
+            raise ValidationError("users.invalidRole", field="role")
+
+        employee = await self._get_own_employee(session, tenant_id, actor_id, user_id)
+
+        # Маркер роли заменяется, гранулярные добавки остаются на месте.
+        # `list(...)` — новый объект, иначе SQLAlchemy не заметит изменение
+        # JSONB-колонки и UPDATE не уйдёт.
+        extras = [entry for entry in employee.permissions if entry not in USERS_ROLE_MAP]
+        employee.permissions = [role, *extras]
+
+        await session.commit()
+
+        log.info("Сменена роль сотрудника", tenant_id=str(tenant_id), user_id=str(user_id), role=role)
+        return employee
+
+    async def set_status(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        user_id: uuid.UUID,
+        status: str,
+    ) -> User:
+        """Отключает (`suspended`) или включает (`active`) учётную запись.
+
+        Отключённому сотруднику вход запрещён немедленно: контекст перечитывает
+        статус из БД на каждом запросе (см. `auth_service.login` и
+        `graphql/context.py`).
+        """
+        if status not in USER_STATUSES:
+            raise ValidationError("users.invalidStatus", field="status")
+
+        employee = await self._get_own_employee(session, tenant_id, actor_id, user_id)
+        employee.status = status
+
+        await session.commit()
+
+        log.info("Изменён статус сотрудника", tenant_id=str(tenant_id), user_id=str(user_id), status=status)
+        return employee
+
+    async def delete_employee(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> User:
+        """Мягко удаляет сотрудника: строка остаётся, но пропадает из выборок.
+
+        Возвращает уже удалённую модель — резолвер собирает из неё ответ.
+        Повторно из БД её не вычитать: глобальный фильтр мягкого удаления
+        спрячет строку. Поэтому связь `tenant` загружена заранее, в
+        `_get_own_employee`, а `expire_on_commit=False` не даёт коммиту
+        сбросить загруженные поля.
+
+        E-mail при этом освобождается: уникальный индекс `uq_users_email`
+        частичный (только живые строки), поэтому адрес уволенного можно завести
+        заново.
+        """
+        employee = await self._get_own_employee(session, tenant_id, actor_id, user_id)
+        employee.deleted_at = datetime.now(UTC)
+
+        await session.commit()
+
+        log.info("Удалён сотрудник", tenant_id=str(tenant_id), user_id=str(user_id))
+        return employee
+
+    async def _get_own_employee(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> User:
+        """Находит сотрудника компании для управляющего действия.
+
+        Три проверки в одном месте, потому что нужны они всем трём операциям —
+        смене роли, статуса и удалению:
+
+        1. `tenant_id` в запросе — сотрудника чужой компании не тронуть даже
+           зная его id.
+        2. Действие над собой запрещено. Отключить или удалить себя — мгновенно
+           лишиться доступа; сменить себе роль — потерять права, которыми это
+           действие и разрешено. А поскольку право управления сотрудниками есть
+           только у администратора, запрет на действие над собой заодно
+           гарантирует, что последнего администратора компании не разжаловать и
+           не удалить: сделать это мог бы лишь другой администратор, который
+           после операции останется.
+        3. Сотрудник существует.
+
+        Связь `tenant` грузится сразу: она нужна GraphQL-типу `User`, а после
+        commit'а (особенно удаляющего) отдельной подгрузкой её уже не достать.
+        """
+        if user_id == actor_id:
+            raise ValidationError("users.cannotManageSelf")
+
+        employee = await session.scalar(
+            select(User).where(User.id == user_id, User.tenant_id == tenant_id).options(selectinload(User.tenant)),
+        )
+        if employee is None:
+            raise NotFoundError("users.notFound")
+
+        return employee
 
 
 #: Синглтон сервиса — как и остальные сервисы, без DI-контейнера.

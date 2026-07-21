@@ -7,6 +7,8 @@
 `DomainErrorExtension`, подключённое к схеме.
 """
 
+import uuid
+
 import strawberry
 from strawberry.types import Info
 
@@ -30,6 +32,31 @@ class CreateEmployeeInput:
     password: str
     #: Маркер базовой роли: `admin` / `manager` / `viewer`.
     role: str
+
+
+@strawberry.input(description="Смена роли сотрудника")
+class ChangeRoleInput:
+    """Кому и какую роль назначить."""
+
+    user_id: uuid.UUID
+    #: Маркер базовой роли: `admin` / `manager` / `viewer`.
+    role: str
+
+
+@strawberry.input(description="Отключение или включение сотрудника")
+class SetStatusInput:
+    """Кому и какой статус выставить."""
+
+    user_id: uuid.UUID
+    #: `active` — вход разрешён, `suspended` — запрещён.
+    status: str
+
+
+@strawberry.input(description="Удаление сотрудника")
+class DeleteEmployeeInput:
+    """Кого удалить."""
+
+    user_id: uuid.UUID
 
 
 @strawberry.type
@@ -68,5 +95,43 @@ class UsersMutation:
                 # единственная известная о нём на момент создания подсказка.
                 locale=auth.user.locale,
             ),
+        )
+        return User.from_model(employee)
+
+    @strawberry.mutation(description="Сменить роль сотрудника")
+    async def resolver_users_change_role(self, info: Info[Context, None], input: ChangeRoleInput) -> User:
+        """Назначает сотруднику другую базовую роль."""
+        auth = require_permission(info.context, UserPermissions.Permission_users_edit)
+        employee = await users_module.users_service.change_role(
+            info.context.session,
+            auth.tenant_id,
+            auth.user.id,
+            input.user_id,
+            input.role,
+        )
+        return User.from_model(employee)
+
+    @strawberry.mutation(description="Отключить или включить сотрудника")
+    async def resolver_users_set_status(self, info: Info[Context, None], input: SetStatusInput) -> User:
+        """Запрещает или разрешает вход сотруднику."""
+        auth = require_permission(info.context, UserPermissions.Permission_users_edit)
+        employee = await users_module.users_service.set_status(
+            info.context.session,
+            auth.tenant_id,
+            auth.user.id,
+            input.user_id,
+            input.status,
+        )
+        return User.from_model(employee)
+
+    @strawberry.mutation(description="Удалить сотрудника")
+    async def resolver_users_delete(self, info: Info[Context, None], input: DeleteEmployeeInput) -> User:
+        """Мягко удаляет сотрудника компании."""
+        auth = require_permission(info.context, UserPermissions.Permission_users_delete)
+        employee = await users_module.users_service.delete_employee(
+            info.context.session,
+            auth.tenant_id,
+            auth.user.id,
+            input.user_id,
         )
         return User.from_model(employee)

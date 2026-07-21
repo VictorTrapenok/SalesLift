@@ -46,6 +46,12 @@ class UserPermissions(StrEnum):
     Permission_users_create = "Permission_users_create"
     """Добавлять новых сотрудников (email + пароль)."""
 
+    Permission_users_edit = "Permission_users_edit"
+    """Менять роль сотрудника и отключать/включать его учётную запись."""
+
+    Permission_users_delete = "Permission_users_delete"
+    """Удалять сотрудников компании."""
+
     # ── Настройки организации ────────────────────────────────────────────
     Permission_org_settings_see = "Permission_org_settings_see"
     """Открывать страницу настроек компании."""

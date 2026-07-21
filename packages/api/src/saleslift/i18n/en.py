@@ -20,6 +20,8 @@ MESSAGES: dict[str, str] = {
     "users.notFound": "Employee not found",
     "users.emailTaken": "This email is already registered",
     "users.invalidRole": "Unknown role",
+    "users.invalidStatus": "Unknown status",
+    "users.cannotManageSelf": "You can't change your own account here",
     # ── Настройки компании ───────────────────────────────────────────────
     "orgSettings.companyNameRequired": "Please enter the company name",
     # ── Профиль ──────────────────────────────────────────────────────────

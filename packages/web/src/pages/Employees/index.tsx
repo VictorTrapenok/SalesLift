@@ -9,6 +9,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useState, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddEmployeeModal from './components/AddEmployeeModal';
+import EmployeeActions from './components/EmployeeActions';
 import { EMPLOYEES_QUERY } from './queries';
 import { roleLabelKey } from './roles';
 
@@ -69,9 +70,23 @@ export default function EmployeesPage(): JSX.Element {
       },
     },
     {
+      title: t('employees.columnStatus'),
+      dataIndex: 'status',
+      render: (status: string): JSX.Element => (
+        <Tag color={status === 'suspended' ? 'red' : 'green'} data-qa={`employees-status-${status}`}>
+          {status === 'suspended' ? t('employees.statusSuspended') : t('employees.statusActive')}
+        </Tag>
+      ),
+    },
+    {
       title: t('employees.columnLastLogin'),
       dataIndex: 'lastLoginAt',
       render: (lastLoginAt: string | null): string => formatLastLogin(lastLoginAt),
+    },
+    {
+      title: t('employees.columnActions'),
+      key: 'actions',
+      render: (_: unknown, employee): JSX.Element => <EmployeeActions employee={employee} />,
     },
   ];
 
