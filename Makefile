@@ -11,7 +11,8 @@ UV  := uv --project $(API)
 PORT ?= 8000
 
 .PHONY: help up down logs reset dev-api dev-web db-migrate schema codegen test \
-        test-integration test-db-start test-db-stop lint format typecheck
+        test-integration test-db-start test-db-stop lint format typecheck \
+        protect-main protect-main-show
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -91,3 +92,11 @@ typecheck: ## mypy --strict + tsc --noEmit
 	# cd в пакет: mypy резолвит `files` из pyproject.toml относительно CWD, а не конфига.
 	cd $(API) && uv run mypy
 	@[ -d $(WEB)/node_modules ] && npm --prefix $(WEB) run typecheck || echo "  ⏭  фронтенд ещё не установлен, пропускаю tsc"
+
+# ── Репозиторий ───────────────────────────────────────────────────────────
+
+protect-main: ## Применить защиту ветки main (.github/rulesets/main.json)
+	bash scripts/apply-ruleset.sh
+
+protect-main-show: ## Показать, какая защита ветки main сейчас включена
+	bash scripts/apply-ruleset.sh --show
