@@ -1,0 +1,93 @@
+{{/*
+Под, обслуживающий HTTP: GraphQL, REST и раздача собранного интерфейса.
+Тот же образ, что и у worker'а, — различаются только APP_MODE и пробы.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "saleslift.fullname" . }}-web
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "saleslift.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      annotations:
+        # Правка ConfigMap сама по себе не перезапускает поды, а настройки
+        # читаются один раз на старте процесса. Без этой контрольной суммы
+        # `helm upgrade --set app.logLevel=debug` прошёл бы «успешно» и не
+        # изменил ничего.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "saleslift.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        {{- include "saleslift.waitForDatabase" . | nindent 8 }}
+      containers:
+        - name: web
+          image: {{ include "saleslift.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "saleslift.fullname" . }}-config
+          env:
+            - name: APP_MODE
+              value: web
+            {{- include "saleslift.appEnv" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          # Обе пробы бьют в один и тот же /api/v1/health, и он намеренно не
+          # ходит в базу: иначе кратковременная недоступность БД перезапускала
+          # бы исправные поды. Подробнее — в routes/health.py.
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext:
+            {{- include "saleslift.containerSecurityContext" . | nindent 12 }}
+      {{- with .Values.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

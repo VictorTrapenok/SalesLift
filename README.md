@@ -81,6 +81,9 @@ helm install saleslift oci://ghcr.io/victortrapenok/charts/saleslift \
 Для промышленной нагрузки подключите управляемую PostgreSQL:
 `--set postgresql.enabled=false --set externalDatabase.host=...`
 
+Параметры, работа с секретами и промышленная конфигурация —
+[readme чарта](deploy/helm/saleslift/readme.md).
+
 ---
 
 ## Технологии

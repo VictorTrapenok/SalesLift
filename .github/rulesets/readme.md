@@ -36,14 +36,15 @@ make protect-main-show    # посмотреть, что сейчас включ
 
 ## Обязательные проверки
 
-Пять job'ов из [test.yml](../workflows/test.yml) и
+Шесть job'ов из [test.yml](../workflows/test.yml) и
 [build.yml](../workflows/build.yml):
 
 ```
-Lint and formatting            ruff, eslint, prettier
-Type checks                    mypy --strict, tsc --noEmit
-Tests                          pytest (unit + интеграционные)
+Lint and formatting             ruff, eslint, prettier
+Type checks                     mypy --strict, tsc --noEmit
+Tests                           pytest (unit + интеграционные)
 GraphQL schema is up to date    schema.graphql перегенерирован
+Helm chart is valid             чарт линтуется и рендерится
 Build, verify and publish       образ собран, дымовой тест и e2e прошли
 ```
 

@@ -1,0 +1,38 @@
+{{/*
+Одно правило на весь продукт: бэкенд сам раздаёт интерфейс, поэтому делить
+пути между API и SPA не нужно — всё уходит в один Service.
+*/}}
+{{- if .Values.ingress.enabled }}
+{{- $host := required "ingress.host обязателен при ingress.enabled=true — иначе правило некуда повесить. Отключите ingress, если доступ настраиваете иначе." .Values.ingress.host -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "saleslift.fullname" . }}
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ default (printf "%s-tls" (include "saleslift.fullname" .)) .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "saleslift.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

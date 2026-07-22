@@ -1,0 +1,154 @@
+# Значения по умолчанию рассчитаны на k3s: чарт разворачивается одной командой
+# и без единого обязательного параметра, кроме адреса. Всё, что нужно для
+# промышленной эксплуатации (внешняя БД, свои секреты, TLS), переопределяется.
+
+image:
+  repository: ghcr.io/victortrapenok/saleslift
+  # Пусто — берётся appVersion из Chart.yaml. Задавайте явно, только если
+  # разворачиваете не ту версию, для которой чарт выпущен.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Секреты для приватного registry. Образ публичный, поэтому по умолчанию пусто.
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Приложение ─────────────────────────────────────────────────────────────
+
+app:
+  # info | debug | warning | error | critical
+  logLevel: info
+
+  jwt:
+    expiresIn: 7d
+    # Пусто — чарт сгенерирует секрет при установке и сохранит его в Secret
+    # релиза. При обновлении уже сгенерированный подхватывается обратно, иначе
+    # каждый `helm upgrade` разлогинивал бы всех сотрудников.
+    secret: ""
+    # Готовый Secret (sealed-secrets, external-secrets и подобное). Если задан,
+    # чарт своего не создаёт и `jwt.secret` игнорируется.
+    existingSecret: ""
+    existingSecretKey: jwt-secret
+
+# Под, обслуживающий HTTP: GraphQL, REST и раздача интерфейса. APP_MODE=web.
+web:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      # Лимита CPU намеренно нет: он даёт троттлинг на ровном месте, а от
+      # шумного соседа защищает request. Память лимитируем — утечка должна
+      # убивать под, а не узел.
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Под фоновых задач: планировщик, HTTP не слушает. APP_MODE=worker.
+# Реплика ровно одна: планировщика с распределённой блокировкой пока нет,
+# вторая реплика дублировала бы задачи (см. ROADMAP).
+worker:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Доступ снаружи ─────────────────────────────────────────────────────────
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  # traefik — то, что k3s ставит из коробки. В обычном кластере обычно nginx.
+  className: traefik
+  # ОБЯЗАТЕЛЕН при ingress.enabled: без имени хоста правило некуда повесить.
+  host: ""
+  annotations: {}
+  tls:
+    enabled: false
+    # Пусто вместе с включённым tls — имя вычислится из host. Заполняется
+    # cert-manager'ом, если аннотациями выше выпущен сертификат.
+    secretName: ""
+
+# ── База данных ────────────────────────────────────────────────────────────
+
+# Встроенная PostgreSQL: одна реплика с диском. Этого достаточно, чтобы
+# начать работать, но резервных копий, реплик и отработки отказа здесь нет —
+# для промышленной нагрузки выключите и подключите управляемую БД.
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    database: saleslift
+    username: saleslift
+    # Пусто — сгенерируется при установке и сохранится, как и JWT-секрет.
+    password: ""
+    existingSecret: ""
+    existingSecretKey: db-password
+  persistence:
+    enabled: true
+    size: 10Gi
+    # Пусто — класс по умолчанию (в k3s это local-path).
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Используется, когда postgresql.enabled=false.
+externalDatabase:
+  host: ""
+  port: 5432
+  database: saleslift
+  username: saleslift
+  password: ""
+  existingSecret: ""
+  existingSecretKey: db-password
+
+# ── Миграции ───────────────────────────────────────────────────────────────
+
+migrations:
+  # Одноразовый Job, а не initContainer: при нескольких репликах каждая
+  # пыталась бы мигрировать параллельно и они блокировали бы друг друга на
+  # DDL-локах. Подробности и порядок запуска — в readme.md.
+  enabled: true
+  backoffLimit: 3
+  # Сколько секунд хранить завершившийся Job. Успешный удаляет сам Helm,
+  # это на случай неудачи с отключённым удалением хука.
+  ttlSecondsAfterFinished: 600
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+# Сколько секунд ждать доступности БД перед стартом приложения и миграций.
+waitForDatabaseTimeout: 120
+
+# ── Прочее ─────────────────────────────────────────────────────────────────
+
+# Дополнительные переменные окружения для подов приложения (web и worker).
+extraEnv: []
+# - name: SOME_FLAG
+#   value: "1"
+
+podAnnotations: {}
+podLabels: {}

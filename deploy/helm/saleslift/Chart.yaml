@@ -1,0 +1,24 @@
+apiVersion: v2
+name: saleslift
+description: Мультитенантный SaaS для аналитики звонков отдела продаж
+type: application
+
+# version — версия чарта, appVersion — версия приложения. Держим их равными:
+# чарт живёт в одном репозитории с кодом и выпускается тем же тегом, поэтому
+# расхождение означало бы только лишний повод перепутать. Обе подставляет CI
+# при публикации (см. .github/workflows/release.yml).
+version: 0.1.0
+appVersion: "0.1.0"
+
+# Ingress берётся из networking.k8s.io/v1, он стабилен с 1.19. Нижнюю границу
+# держим на 1.25: там ушли последние beta-API, которые чарт мог бы задеть.
+kubeVersion: ">=1.25.0-0"
+
+home: https://github.com/VictorTrapenok/SalesLift
+sources:
+  - https://github.com/VictorTrapenok/SalesLift
+keywords:
+  - saas
+  - sales
+  - calls
+  - analytics

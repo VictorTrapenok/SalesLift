@@ -17,7 +17,9 @@ on:
 
 permissions:
   contents: write
-  packages: read
+  # write, а не read: сюда же публикуется Helm-чарт — в GHCR он такой же
+  # пакет, как и образ.
+  packages: write
 
 env:
   REGISTRY: ghcr.io
@@ -68,6 +70,36 @@ jobs:
           echo "::error::Image ${IMAGE} never appeared. Check the «Build image» workflow for this tag."
           exit 1
 
+      # ── Helm-чарт ────────────────────────────────────────────────────────
+      # Публикуется тем же тегом и ПОСЛЕ образа. Порядок не косметический:
+      # чарт по умолчанию ставит образ версии appVersion, поэтому выпущенный
+      # раньше образа чарт был бы заведомо неустанавливаемым.
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          # Та же версия, что и в проверке чарта в test.yml.
+          version: v3.16.3
+
+      - name: Package and publish the chart
+        id: chart
+        run: |
+          # OCI-реестр требует путь в нижнем регистре, а github.repository_owner
+          # отдаёт имя как оно записано в профиле.
+          OWNER="${{ github.repository_owner }}"
+          OWNER="${OWNER,,}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login "$REGISTRY" --username "${{ github.actor }}" --password-stdin
+
+          # --version и --app-version перебивают значения из Chart.yaml: в
+          # репозитории они остаются справочными, источник истины — тег.
+          helm package deploy/helm/saleslift \
+            --version "$VERSION" --app-version "$VERSION" --destination dist
+
+          helm push "dist/saleslift-${VERSION}.tgz" "oci://${REGISTRY}/${OWNER}/charts"
+          echo "chart=oci://${REGISTRY}/${OWNER}/charts/saleslift" >> "$GITHUB_OUTPUT"
+
       - name: Release notes
         id: notes
         run: |
@@ -83,6 +115,19 @@ jobs:
           \`\`\`
 
           Откройте http://localhost:8000 и зарегистрируйте компанию.
+
+          ## Установка в кластер
+
+          \`\`\`bash
+          helm install saleslift ${{ steps.chart.outputs.chart }} \\
+            --version ${{ steps.version.outputs.version }} \\
+            --namespace saleslift --create-namespace \\
+            --set ingress.host=saleslift.example.com
+          \`\`\`
+
+          Чарт поднимает и базу — этого достаточно, чтобы начать работать.
+          Параметры и промышленная конфигурация — в
+          [readme чарта](https://github.com/${{ github.repository }}/blob/${{ steps.version.outputs.tag }}/deploy/helm/saleslift/readme.md).
 
           ## Образ
 
@@ -125,5 +170,6 @@ jobs:
             echo "### ✅ Release ${{ steps.version.outputs.tag }} published"
             echo ""
             echo "- [Release page](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})"
+            echo "- Chart: \`${{ steps.chart.outputs.chart }}\` (${{ steps.version.outputs.version }})"
             echo "- Image: \`${{ steps.image.outputs.image }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

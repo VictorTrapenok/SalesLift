@@ -49,7 +49,8 @@
 
 Подробная архитектура — [ARCHITECTURE.md](ARCHITECTURE.md), тестирование —
 [docs/testing.md](docs/testing.md), рабочее окружение —
-[docs/development.md](docs/development.md).
+[docs/development.md](docs/development.md), развёртывание в кластере —
+[deploy/helm/saleslift/readme.md](deploy/helm/saleslift/readme.md).
 
 ## Порядок обновления документации
 

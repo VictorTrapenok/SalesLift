@@ -153,6 +153,23 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
+  helm-chart:
+    name: Helm chart is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Версию держим равной той, которой чарт публикуется в release.yml:
+      # рендер не должен зависеть от того, каким helm его прогнали.
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      # Чарт ломается молча: сломанный шаблон не мешает ни тестам, ни сборке
+      # образа, и обнаруживается уже при установке в кластер.
+      - name: Lint and render the chart
+        run: make chart-lint
+
   schema-drift:
     name: GraphQL schema is up to date
     runs-on: ubuntu-latest

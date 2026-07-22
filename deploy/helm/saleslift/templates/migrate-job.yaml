@@ -1,0 +1,70 @@
+{{/*
+Миграции — отдельный одноразовый Job, а не initContainer подов приложения.
+Причина та же, что и в compose: при нескольких репликах каждая пыталась бы
+мигрировать параллельно, и они блокировали бы друг друга на DDL-локах.
+
+Момент запуска выбран так:
+
+  post-install — при установке базы ещё не существует, пока Helm не создал
+                 StatefulSet. Значит, мигрировать можно только после.
+  pre-upgrade  — при обновлении база уже есть, и схему нужно накатить ДО того,
+                 как поедет новая версия кода. Это работает потому, что
+                 миграции у нас обязаны быть совместимы с предыдущей версией
+                 кода на один релиз (см. migrations/readme.md): между
+                 миграцией и выкатом старый код продолжает работать.
+
+Следствие, которое стоит знать: при самой первой установке приложение
+поднимется чуть раньше, чем появятся таблицы, и несколько секунд будет
+отвечать ошибками. Это самолечится и касается только install.
+*/}}
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "saleslift.fullname" . }}-migrate
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    # Успешный Job удаляем, неудачный оставляем — по нему и разбираются, что
+    # пошло не так. Следующий запуск снесёт его перед созданием нового.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "saleslift.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        {{- include "saleslift.waitForDatabase" . | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "saleslift.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # args, а не command: в Kubernetes `command` перебивает ENTRYPOINT
+          # образа, и docker-entrypoint.sh был бы пропущен. `args` заменяет
+          # только CMD — ровно как `command:` в compose. Путь запуска один и
+          # тот же локально и в кластере.
+          args: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "saleslift.fullname" . }}-config
+          env:
+            {{- include "saleslift.appEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          securityContext:
+            {{- include "saleslift.containerSecurityContext" . | nindent 12 }}
+{{- end }}

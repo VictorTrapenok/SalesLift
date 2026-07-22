@@ -6,13 +6,14 @@ SHELL := /bin/bash
 
 API := packages/api
 WEB := packages/web
+CHART := deploy/helm/saleslift
 UV  := uv --project $(API)
 # Порт для `make dev`. Переопределяется, если 8000 занят: `make dev PORT=8081`.
 PORT ?= 8000
 
 .PHONY: help up down logs reset dev-api dev-web db-migrate schema codegen test \
         test-integration test-db-start test-db-stop lint format typecheck \
-        protect-main protect-main-show
+        protect-main protect-main-show chart-lint
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -92,6 +93,19 @@ typecheck: ## mypy --strict + tsc --noEmit
 	# cd в пакет: mypy резолвит `files` из pyproject.toml относительно CWD, а не конфига.
 	cd $(API) && uv run mypy
 	@[ -d $(WEB)/node_modules ] && npm --prefix $(WEB) run typecheck || echo "  ⏭  фронтенд ещё не установлен, пропускаю tsc"
+
+# ── Развёртывание ─────────────────────────────────────────────────────────
+
+chart-lint: ## Проверить Helm-чарт на всех наборах значений из ci/
+	# Рендер, а не только lint: lint ловит нарушения структуры чарта, а
+	# невалидный шаблон или забытый required видно только при рендере.
+	@for values in $(CHART)/ci/*.yaml; do \
+		echo "▸ $$values"; \
+		helm lint $(CHART) --values "$$values" || exit 1; \
+		helm template saleslift $(CHART) --values "$$values" \
+			--namespace saleslift > /dev/null || exit 1; \
+	done
+	@echo "  ✅ чарт валиден"
 
 # ── Репозиторий ───────────────────────────────────────────────────────────
 

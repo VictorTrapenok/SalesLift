@@ -1,0 +1,33 @@
+# Промышленный путь: управляемая PostgreSQL, свои секреты, TLS, без worker'а.
+# Проверяет, что чарт не создаёт ни StatefulSet, ни собственный Secret.
+ingress:
+  host: saleslift.example.com
+  className: nginx
+  tls:
+    enabled: true
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  host: db.internal.example.com
+  port: 6432
+  database: saleslift_prod
+  username: saleslift_app
+  existingSecret: saleslift-db
+  existingSecretKey: password
+
+app:
+  jwt:
+    existingSecret: saleslift-jwt
+    existingSecretKey: secret
+
+worker:
+  enabled: false
+
+web:
+  replicaCount: 3
+
+extraEnv:
+  - name: LOG_FILE_PATH
+    value: /tmp/saleslift.json

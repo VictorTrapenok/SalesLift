@@ -1,0 +1,26 @@
+{{/*
+Несекретное окружение приложения. Имена переменных обязаны совпадать с полями
+Settings в packages/api/src/saleslift/config/settings.py — там же список
+допустимых значений.
+
+APP_MODE здесь намеренно нет: он единственный, что различается у web и worker,
+и задаётся в каждом Deployment отдельно.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "saleslift.fullname" . }}-config
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+data:
+  # production включает проверку секретов на старте: с дефолтными JWT_SECRET
+  # или паролем БД процесс откажется подниматься. Это ожидаемо — чарт
+  # генерирует и то, и другое.
+  APP_ENV: "production"
+  PORT: "8000"
+  LOG_LEVEL: {{ .Values.app.logLevel | quote }}
+  JWT_EXPIRES_IN: {{ .Values.app.jwt.expiresIn | quote }}
+  DB_HOST: {{ include "saleslift.dbHost" . | quote }}
+  DB_PORT: {{ include "saleslift.dbPort" . | quote }}
+  DB_NAME: {{ include "saleslift.dbName" . | quote }}
+  DB_USER: {{ include "saleslift.dbUser" . | quote }}

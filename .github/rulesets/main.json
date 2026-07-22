@@ -31,6 +31,7 @@
           { "context": "Type checks" },
           { "context": "Tests" },
           { "context": "GraphQL schema is up to date" },
+          { "context": "Helm chart is valid" },
           { "context": "Build, verify and publish" }
         ]
       }

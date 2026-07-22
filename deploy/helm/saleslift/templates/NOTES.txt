@@ -1,0 +1,33 @@
+SalesLift {{ .Chart.AppVersion }} развёрнут: релиз {{ .Release.Name }}, namespace {{ .Release.Namespace }}.
+
+{{ if .Values.ingress.enabled -}}
+Откройте http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }} и зарегистрируйте компанию —
+первый зарегистрировавшийся становится администратором.
+{{- else -}}
+Ingress выключен. Чтобы заглянуть в интерфейс, пробросьте порт:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "saleslift.fullname" . }} 8000:{{ .Values.service.port }}
+
+и откройте http://localhost:8000
+{{- end }}
+
+Состояние релиза:
+
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl --namespace {{ .Release.Namespace }} logs -l app.kubernetes.io/component=web --tail=100
+
+{{ if and .Values.postgresql.enabled (not .Values.postgresql.auth.existingSecret) -}}
+⚠  Встроенная PostgreSQL — одна реплика с диском, без резервных копий и без
+   отработки отказа. Для промышленной нагрузки подключите управляемую БД:
+
+     --set postgresql.enabled=false \
+     --set externalDatabase.host=... --set externalDatabase.password=...
+{{ end -}}
+
+{{- if or (not .Values.app.jwt.secret) (and .Values.postgresql.enabled (not .Values.postgresql.auth.password)) }}
+Секреты сгенерированы автоматически и сохранены в Secret {{ include "saleslift.secretName" . }}.
+Он переживает `helm uninstall` намеренно — иначе повторная установка не смогла
+бы войти в сохранившуюся на диске базу. Посмотреть:
+
+  kubectl --namespace {{ .Release.Namespace }} get secret {{ include "saleslift.secretName" . }} -o jsonpath='{.data.jwt-secret}' | base64 -d
+{{- end }}

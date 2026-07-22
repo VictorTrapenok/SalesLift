@@ -1,0 +1,77 @@
+{{/*
+Под фоновых задач. HTTP не слушает, поэтому ни Service, ни HTTP-проб у него
+нет: k8s следит только за тем, что процесс жив.
+
+Реплика ровно одна и параметра для её увеличения нет намеренно. Планировщик
+пока без распределённой блокировки — вторая реплика взяла бы те же задачи
+второй раз. Как появится блокировка, здесь добавится replicaCount.
+*/}}
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "saleslift.fullname" . }}-worker
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  # Задачи не должны исполняться двумя процессами одновременно даже секунду,
+  # поэтому обновляемся с остановкой: сначала гасим старый под, потом поднимаем
+  # новый. Плата — пауза в обработке фоновых задач на время выката.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "saleslift.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "saleslift.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        {{- include "saleslift.waitForDatabase" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: {{ include "saleslift.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "saleslift.fullname" . }}-config
+          env:
+            - name: APP_MODE
+              value: worker
+            {{- include "saleslift.appEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "saleslift.containerSecurityContext" . | nindent 12 }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

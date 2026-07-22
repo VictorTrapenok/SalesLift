@@ -1,0 +1,125 @@
+{{/*
+Встроенная PostgreSQL: одна реплика с диском. Ровно столько, чтобы продукт
+заработал сразу после установки. Резервных копий, реплик и отработки отказа
+здесь нет и не будет — для промышленной нагрузки ставьте
+postgresql.enabled=false и подключайте управляемую БД.
+*/}}
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "saleslift.fullname" . }}-postgresql
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgresql
+      protocol: TCP
+      name: postgresql
+  selector:
+    {{- include "saleslift.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "saleslift.fullname" . }}-postgresql
+  labels:
+    {{- include "saleslift.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  serviceName: {{ include "saleslift.fullname" . }}-postgresql
+  # Ровно одна. Вторая реплика этого StatefulSet'а — это не реплика базы, а
+  # вторая независимая пустая база: репликацию PostgreSQL так не настраивают.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "saleslift.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "saleslift.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgresql
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          # Пользователя намеренно не переопределяем. Штатная точка входа
+          # образа стартует под root, сама выставляет права на каталог данных
+          # и роняет привилегии до postgres. Задай мы здесь runAsUser или
+          # fsGroup — пришлось бы угадывать uid, который у alpine- и
+          # debian-вариантов образа разный, а промах ломает инициализацию.
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresql.auth.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "saleslift.dbSecretName" . }}
+                  key: {{ include "saleslift.dbSecretKey" . }}
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.postgresql.auth.username | quote }}
+                - -d
+                - {{ .Values.postgresql.auth.database | quote }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.postgresql.auth.username | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            # Монтируем /var/lib/postgresql, а НЕ /var/lib/postgresql/data:
+            # начиная с 18-й версии образ кладёт данные в подкаталог, и
+            # монтирование по старому пути приводит к отказу старта
+            # («data in unused mount/volume»). Тот же путь в compose.yaml.
+            - name: data
+              mountPath: /var/lib/postgresql
+      {{- if not .Values.postgresql.persistence.enabled }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.postgresql.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.postgresql.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.persistence.size | quote }}
+  {{- end }}
+{{- end }}
