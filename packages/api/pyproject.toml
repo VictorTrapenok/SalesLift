@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "SalesLift — мультитенантный SaaS для аналитики звонков: GraphQL API и фоновый воркер"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.139.1",
+    "fastapi>=0.139.2",
     "strawberry-graphql[fastapi]>=0.321.0",
     "uvicorn[standard]>=0.38",
     "sqlalchemy[asyncio]>=2.0.51",
@@ -22,7 +22,7 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.25",
     "pytest-cov>=6.0",
-    "ruff>=0.9",
+    "ruff>=0.15.22",
     "mypy>=1.14",
     "strawberry-graphql[cli]>=0.321.0",
     "httpx>=0.28",
