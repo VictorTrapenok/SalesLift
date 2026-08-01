@@ -107,7 +107,7 @@ jobs:
       # generate_release_notes=true добавляет список изменений и участников,
       # собранный самим GitHub из коммитов и PR со времени прошлого тега.
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: SalesLift ${{ steps.version.outputs.tag }}
