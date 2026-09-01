@@ -43,7 +43,7 @@ RUN uv run strawberry export-schema saleslift.graphql.schema:schema > /app/packa
 # Тег держим равным NODE_VERSION в .github/workflows/test.yml (сейчас 24) —
 # иначе прод собирается на версии, на которой не гонялись ни тесты, ни линтеры.
 # Молча не ломается, поэтому и опасно: расхождение всплывёт не в CI, а на бою.
-FROM node:24-alpine AS web-builder
+FROM node:26-alpine AS web-builder
 
 WORKDIR /app/packages/web
 
